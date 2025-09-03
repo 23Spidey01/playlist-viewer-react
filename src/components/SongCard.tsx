@@ -1,68 +1,137 @@
 // SongCard.tsx
 import React from "react";
-import type { BSSongInfo } from "./types";
+import type { BSSongInfo, BSDifficulty, HBPlaylist } from "./types";
+import standardIcon from "../assets/Icons/standard.svg";
+import lawlessIcon from "../assets/Icons/lawless.svg";
+import lightshowIcon from "../assets/Icons/lightshow.svg";
+import noarrowsIcon from "../assets/Icons/lightshow.svg";
+import threesixtydegreeIcon from "../assets/Icons/360degree.svg";
 
 interface SongCardProps {
   song: BSSongInfo;
+  playlistSong?: HBPlaylist["songs"][number];
 }
 
-const SongCard: React.FC<SongCardProps> = ({ song }) => {
+// Map für Icons
+const characteristicIcons: Record<string, string> = {
+  Standard: standardIcon,
+  Lawless: lawlessIcon,
+  Lightshow: lightshowIcon,
+  NoArrows: noarrowsIcon,
+  "360Degree": threesixtydegreeIcon,
+};
+
+// Map für sanfte Farben je Difficulty
+const diffColors: Record<string, string> = {
+  Easy: "bg-green-600/60 text-green-100",
+  Normal: "bg-blue-600/60 text-blue-100",
+  Hard: "bg-yellow-600/60 text-yellow-100",
+  Expert: "bg-orange-600/60 text-orange-100",
+  ExpertPlus: "bg-red-600/60 text-red-100",
+};
+
+const SongCard: React.FC<SongCardProps> = ({ song, playlistSong }) => {
   const coverUrl = song.versions?.[0]?.coverURL || "";
-  const firstDiff = song.versions?.[0]?.diffs?.[0];
+  const difficulties: BSDifficulty[] = song.versions?.[0]?.diffs || [];
   const uploadDate = new Date(song.uploaded).toLocaleDateString();
 
+  // Gruppiere Difficulties nach characteristic
+  const grouped: Record<string, BSDifficulty[]> = {};
+  difficulties.forEach((diff) => {
+    if (!grouped[diff.characteristic]) grouped[diff.characteristic] = [];
+    grouped[diff.characteristic].push(diff);
+  });
+
+  // Star Ratings aus der Playlist
+  const starRatings = playlistSong?.hitbloq?.difficulties || {};
+
   return (
-    <div className="border rounded-xl p-4 shadow-lg bg-white flex flex-col items-start hover:shadow-2xl transition-shadow duration-200">
-      <div className="w-full flex items-center gap-4 mb-2">
+    <div className="border border-neutral-700 rounded-xl p-4 shadow bg-neutral-800 flex flex-col hover:shadow-lg transition-all duration-200 w-full">
+      <div className="flex gap-4 mb-3">
         {coverUrl && (
           <img
             src={coverUrl}
             alt={song.name}
-            className="w-24 h-24 object-cover rounded-lg border"
+            className="w-20 h-20 object-cover rounded-lg border border-neutral-700 shadow"
           />
         )}
         <div className="flex-1">
-          <h3 className="font-bold text-xl mb-1">{song.name}</h3>
-          <p className="text-gray-600 text-sm">{song.metadata.songAuthorName}</p>
-          <p className="text-xs text-gray-500">von {song.uploader.name}</p>
+          <h3 className="font-bold text-base mb-1 text-cyan-300 break-words whitespace-normal">
+            {song.metadata.songName}
+          </h3>
+          <p className="text-neutral-400 text-sm break-words whitespace-normal">
+            {song.metadata.songAuthorName}
+          </p>
+          <p className="text-xs text-neutral-500 break-words whitespace-normal">
+            von {song.uploader.name}
+          </p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2 mb-2">
-        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">
-          BPM: {song.metadata.bpm}
-        </span>
-        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
-          Länge: {Math.round(song.metadata.duration / 60)} min
-        </span>
-        {firstDiff && (
-          <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-semibold">
-            {firstDiff.characteristic} – {firstDiff.difficulty}
-          </span>
-        )}
-        {song.ranked && (
-          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-semibold">
-            Ranked
-          </span>
-        )}
-        {song.qualified && (
-          <span className="bg-pink-100 text-pink-800 px-2 py-1 rounded text-xs font-semibold">
-            Qualified
-          </span>
-        )}
+      {/* Difficulties nach characteristic gruppiert */}
+      <div className="flex flex-col gap-2 mb-2">
+        {Object.entries(grouped).map(([characteristic, diffs]) => (
+          <div key={characteristic} className="flex items-center gap-2">
+            {/* Icon oder Text für die characteristic */}
+            {characteristicIcons[characteristic] ? (
+              <img
+                src={characteristicIcons[characteristic]}
+                alt={characteristic}
+                className="w-5 h-5 inline-block"
+              />
+            ) : (
+              <span className="font-semibold text-cyan-200">
+                {characteristic}
+              </span>
+            )}
+            {/* Alle Difficulties dieser characteristic */}
+            <div className="flex flex-wrap gap-2">
+              {diffs.map((diff, idx) => {
+                // Star Rating aus Playlist holen
+                // difficulty in Playlist ist meist klein geschrieben!
+                const diffKey =
+                  diff.difficulty.charAt(0).toLowerCase() +
+                  diff.difficulty.slice(1);
+                const star = starRatings?.[characteristic]?.[diffKey];
+
+                return (
+                  <span
+                    key={idx}
+                    className={`px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm flex items-center gap-1 ${
+                      star
+                        ? "border border-yellow-400 bg-yellow-700/40 text-yellow-100"
+                        : diffColors[diff.difficulty] ||
+                          "bg-neutral-700/60 text-cyan-100"
+                    }`}
+                  >
+                    {diff.difficulty}
+                    {star !== undefined && (
+                      <span className="ml-1 inline-flex items-center gap-1">
+                        <svg
+                          className="w-3 h-3 text-yellow-400 inline-block"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.967c.3.921-.755 1.688-1.54 1.118l-3.38-2.455a1 1 0 00-1.175 0l-3.38 2.455c-.784.57-1.838-.197-1.539-1.118l1.287-3.967a1 1 0 00-.364-1.118L2.049 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z" />
+                        </svg>
+                        <span className="font-bold">
+                          {star % 1 === 0 ? star : star.toString()}
+                        </span>
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="flex justify-between w-full text-xs text-gray-500 mb-2">
-        <span>Plays: {song.stats.plays}</span>
-        <span>Downloads: {song.stats.downloads}</span>
-        <span>Upvotes: {song.stats.upvotes}</span>
-        <span>Downvotes: {song.stats.downvotes}</span>
-      </div>
-      <div className="w-full flex justify-between items-center text-xs text-gray-400">
+      <div className="w-full flex justify-between items-center text-xs text-neutral-400 mt-auto">
         <span>Hochgeladen: {uploadDate}</span>
         <a
           href={`https://beatsaver.com/maps/${song.id}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-500 hover:underline"
+          className="text-cyan-400 hover:text-orange-400 hover:underline"
         >
           BeatSaver öffnen
         </a>
