@@ -12,22 +12,22 @@ const SongCard: React.FC<SongCardProps> = ({ song }) => {
   const uploadDate = new Date(song.uploaded).toLocaleDateString();
 
   return (
-    <div className="border rounded-2xl p-5 shadow-xl bg-white flex flex-col hover:scale-[1.03] hover:shadow-2xl transition-all duration-200">
-      <div className="flex gap-4 mb-3">
+    <div className="border rounded-xl p-4 shadow-lg bg-white flex flex-col items-start hover:shadow-2xl transition-shadow duration-200">
+      <div className="w-full flex items-center gap-4 mb-2">
         {coverUrl && (
           <img
             src={coverUrl}
             alt={song.name}
-            className="w-24 h-24 object-cover rounded-xl border shadow"
+            className="w-24 h-24 object-cover rounded-lg border"
           />
         )}
         <div className="flex-1">
-          <h3 className="font-bold text-lg mb-1 text-purple-700">{song.name}</h3>
+          <h3 className="font-bold text-xl mb-1">{song.name}</h3>
           <p className="text-gray-600 text-sm">{song.metadata.songAuthorName}</p>
           <p className="text-xs text-gray-500">von {song.uploader.name}</p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2 mb-3">
+      <div className="flex flex-wrap gap-2 mb-2">
         <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">
           BPM: {song.metadata.bpm}
         </span>
@@ -50,19 +50,19 @@ const SongCard: React.FC<SongCardProps> = ({ song }) => {
           </span>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2 w-full text-xs text-gray-500 mb-3">
-        <span>Plays: <span className="font-semibold">{song.stats.plays}</span></span>
-        <span>Downloads: <span className="font-semibold">{song.stats.downloads}</span></span>
-        <span>Upvotes: <span className="font-semibold">{song.stats.upvotes}</span></span>
-        <span>Downvotes: <span className="font-semibold">{song.stats.downvotes}</span></span>
+      <div className="flex justify-between w-full text-xs text-gray-500 mb-2">
+        <span>Plays: {song.stats.plays}</span>
+        <span>Downloads: {song.stats.downloads}</span>
+        <span>Upvotes: {song.stats.upvotes}</span>
+        <span>Downvotes: {song.stats.downvotes}</span>
       </div>
-      <div className="w-full flex justify-between items-center text-xs text-gray-400 mt-2">
+      <div className="w-full flex justify-between items-center text-xs text-gray-400">
         <span>Hochgeladen: {uploadDate}</span>
         <a
           href={`https://beatsaver.com/maps/${song.id}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-purple-500 hover:underline font-semibold"
+          className="text-blue-500 hover:underline"
         >
           BeatSaver öffnen
         </a>
