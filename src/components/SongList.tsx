@@ -160,13 +160,8 @@ const SongList: React.FC<SongListProps> = ({ playlist }) => {
                           pool: poolId,
                           song: songId,
                         };
-                        // Logge den exakten Request
-                        console.log(
-                          "POST https://hitbloq.com/api/pools/unrank",
-                          JSON.stringify(requestBody, null, 2)
-                        );
                         // Sende den Unrank-Request
-                        await fetch("https://hitbloq.com/api/pools/unrank", {
+                        await fetch("http://localhost:3001/proxy/unrank", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify(requestBody),
