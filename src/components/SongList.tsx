@@ -25,9 +25,11 @@ const diffMap: Record<string, string> = {
 const charMap: Record<string, string> = {
   s: "Standard",
   sll: "Lawless",
-  sls: "Lightshow",
+  sos: "OneSaber",
   sna: "NoArrows",
+  s90: "90Degree",
   s360: "360Degree",
+  sls: "Lightshow",
 };
 
 const SongList: React.FC<SongListProps> = ({ poolId }) => {

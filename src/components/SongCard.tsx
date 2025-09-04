@@ -2,10 +2,12 @@
 import React from "react";
 import type { BSSongInfo, BSDifficulty } from "./types";
 import standardIcon from "../assets/Icons/standard.svg";
+import onesaberIcon from "../assets/Icons/onesaber.svg";
 import lawlessIcon from "../assets/Icons/lawless.svg";
 import lightshowIcon from "../assets/Icons/lightshow.svg";
 import noarrowsIcon from "../assets/Icons/noarrows.svg";
 import threesixtydegreeIcon from "../assets/Icons/360degree.svg";
+import ninetydegreeIcon from "../assets/Icons/90degree.svg";
 
 interface SongCardProps {
   song: BSSongInfo;
@@ -16,9 +18,11 @@ interface SongCardProps {
 const characteristicIcons: Record<string, string> = {
   Standard: standardIcon,
   Lawless: lawlessIcon,
-  Lightshow: lightshowIcon,
+  OneSaber: onesaberIcon,
   NoArrows: noarrowsIcon,
+  "90Degree": ninetydegreeIcon,
   "360Degree": threesixtydegreeIcon,
+  Lightshow: lightshowIcon,
 };
 
 // Farben für die Difficulties
