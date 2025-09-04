@@ -25,7 +25,7 @@ const diffMap: Record<string, string> = {
 const charMap: Record<string, string> = {
   s: "Standard",
   sll: "Lawless",
-  l: "Lightshow",
+  sls: "Lightshow",
   sna: "NoArrows",
   s360: "360Degree",
 };
@@ -121,7 +121,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
           <span>
             Songs gefunden bei BeatSaver: <b>{bsSongs.length}</b>
           </span>
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 flex-wrap w-full">
             Nicht gefundene Songs: <b>{missingHashes.length}</b>
             {missingHashes.length > 0 && (
               <button
@@ -139,6 +139,28 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                 Hash-Liste kopieren
               </button>
             )}
+            {/* Recalculate CR Button - größer und rechtsbündig */}
+            <button
+              className="ml-auto px-6 py-3 bg-cyan-700 text-neutral-100 rounded-lg hover:bg-cyan-800 text-base font-bold shadow transition-all"
+              style={{ minWidth: "180px" }}
+              onClick={async () => {
+                const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                if (!key) return alert("Kein API-Key eingegeben.");
+                setLoading(true);
+                const res = await fetch("http://localhost:3001/proxy/recalculate_cr", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ key, pool: poolId }),
+                });
+                setLoading(false);
+                const result = await res.json();
+                alert(result.status === "success"
+                  ? "CR wurde neu berechnet!"
+                  : "Fehler: " + (result.error || result.status));
+              }}
+            >
+              CR neu berechnen
+            </button>
           </span>
         </div>
       )}

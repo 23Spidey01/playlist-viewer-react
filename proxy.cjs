@@ -50,4 +50,20 @@ app.get("/proxy/ranked_list_detailed/:pool_id/:page", async (req, res) => {
   }
 });
 
+app.post("/proxy/recalculate_cr", async (req, res) => {
+  const response = await fetch("https://hitbloq.com/api/pools/recalculate_cr", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req.body),
+  });
+  const text = await response.text();
+  console.log("Hitbloq Response:", text);
+  try {
+    const data = JSON.parse(text);
+    res.json(data);
+  } catch (e) {
+    res.status(500).send(text);
+  }
+});
+
 app.listen(3001, () => console.log("Proxy läuft auf Port 3001"));
