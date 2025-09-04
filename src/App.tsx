@@ -9,6 +9,7 @@ interface PoolDetailed {
   author: string;
   player_count: number;
   popularity: number;
+  banner_image?: string; // <--- hinzugefügt
 }
 
 const App: React.FC = () => {
@@ -53,35 +54,56 @@ const App: React.FC = () => {
             ))}
           </select>
           {/* Optional: Mehr Infos zum ausgewählten Pool anzeigen */}
-          {selectedPool && (
-            <div className="mt-6 w-full flex flex-col items-center">
-              {(() => {
-                const pool = pools.find((p) => p.id === selectedPool);
-                if (!pool) return null;
-                return (
-                  <div className="flex flex-col items-center gap-2">
-                    <img
-                      src={pool.image}
-                      alt={pool.title}
-                      className="w-32 h-32 object-cover rounded-lg border border-neutral-700 shadow"
-                    />
-                    <div className="text-neutral-200 font-semibold text-lg">
+          {selectedPool && (() => {
+            const pool = pools.find((p) => p.id === selectedPool);
+            if (!pool) return null;
+            return (
+              <div className="mt-6 w-full flex justify-center">
+                <div className="flex flex-col md:flex-row items-center gap-6 bg-neutral-800 border border-neutral-700 rounded-xl p-6 shadow w-full max-w-2xl">
+                  <img
+                    src={pool.image}
+                    alt={pool.title}
+                    className="w-32 h-32 object-cover rounded-lg border border-neutral-700 shadow"
+                  />
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="text-2xl font-bold text-cyan-300">
                       {pool.title}
                     </div>
-                    <div className="text-neutral-400 text-sm">
+                    <div className="text-neutral-400 text-base">
                       {pool.short_description}
                     </div>
-                    <div className="text-neutral-500 text-xs">
-                      Autor: {pool.author}
+                    <div className="flex gap-4 mt-2 text-sm text-neutral-500">
+                      <span>
+                        Autor:{" "}
+                        <span className="font-semibold text-neutral-300">
+                          {pool.author}
+                        </span>
+                      </span>
+                      <span>
+                        Spieler:{" "}
+                        <span className="font-semibold text-neutral-300">
+                          {pool.player_count}
+                        </span>
+                      </span>
+                      <span>
+                        Popularität:{" "}
+                        <span className="font-semibold text-neutral-300">
+                          {pool.popularity}
+                        </span>
+                      </span>
                     </div>
-                    <div className="text-neutral-500 text-xs">
-                      Spieler: {pool.player_count}
-                    </div>
+                    {pool.banner_image && (
+                      <img
+                        src={pool.banner_image}
+                        alt="Banner"
+                        className="mt-2 w-full max-h-16 object-cover rounded"
+                      />
+                    )}
                   </div>
-                );
-              })()}
-            </div>
-          )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
         {/* SongList anzeigen, wenn Pool gewählt */}
         {selectedPool && <SongList poolId={selectedPool} />}
