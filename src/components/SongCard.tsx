@@ -1,18 +1,18 @@
 // SongCard.tsx
 import React from "react";
-import type { BSSongInfo, BSDifficulty, HBPlaylist } from "./types";
+import type { BSSongInfo, BSDifficulty } from "./types";
 import standardIcon from "../assets/Icons/standard.svg";
 import lawlessIcon from "../assets/Icons/lawless.svg";
 import lightshowIcon from "../assets/Icons/lightshow.svg";
-import noarrowsIcon from "../assets/Icons/lightshow.svg";
+import noarrowsIcon from "../assets/Icons/noarrows.svg";
 import threesixtydegreeIcon from "../assets/Icons/360degree.svg";
 
 interface SongCardProps {
   song: BSSongInfo;
-  playlistSong?: HBPlaylist["songs"][number];
+  starRatings?: Record<string, Record<string, number>>;
 }
 
-// Map für Icons
+// Icons für die Characteristics
 const characteristicIcons: Record<string, string> = {
   Standard: standardIcon,
   Lawless: lawlessIcon,
@@ -21,7 +21,7 @@ const characteristicIcons: Record<string, string> = {
   "360Degree": threesixtydegreeIcon,
 };
 
-// Map für sanfte Farben je Difficulty
+// Farben für die Difficulties
 const diffColors: Record<string, string> = {
   Easy: "bg-green-600/60 text-green-100",
   Normal: "bg-blue-600/60 text-blue-100",
@@ -30,20 +30,17 @@ const diffColors: Record<string, string> = {
   ExpertPlus: "bg-red-600/60 text-red-100",
 };
 
-const SongCard: React.FC<SongCardProps> = ({ song, playlistSong }) => {
+const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
   const coverUrl = song.versions?.[0]?.coverURL || "";
   const difficulties: BSDifficulty[] = song.versions?.[0]?.diffs || [];
   const uploadDate = new Date(song.uploaded).toLocaleDateString();
 
-  // Gruppiere Difficulties nach characteristic
+  // Difficulties nach characteristic gruppieren
   const grouped: Record<string, BSDifficulty[]> = {};
   difficulties.forEach((diff) => {
     if (!grouped[diff.characteristic]) grouped[diff.characteristic] = [];
     grouped[diff.characteristic].push(diff);
   });
-
-  // Star Ratings aus der Playlist
-  const starRatings = playlistSong?.hitbloq?.difficulties || {};
 
   return (
     <div className="border border-neutral-700 rounded-xl p-4 shadow bg-neutral-800 flex flex-col hover:shadow-lg transition-all duration-200 w-full">
@@ -51,7 +48,7 @@ const SongCard: React.FC<SongCardProps> = ({ song, playlistSong }) => {
         {coverUrl && (
           <img
             src={coverUrl}
-            alt={song.name}
+            alt={song.metadata.songName}
             className="w-20 h-20 object-cover rounded-lg border border-neutral-700 shadow"
           />
         )}
@@ -86,18 +83,13 @@ const SongCard: React.FC<SongCardProps> = ({ song, playlistSong }) => {
             {/* Alle Difficulties dieser characteristic */}
             <div className="flex flex-wrap gap-2">
               {diffs.map((diff, idx) => {
-                // Star Rating aus Playlist holen
-                // difficulty in Playlist ist meist klein geschrieben!
-                const diffKey =
-                  diff.difficulty.charAt(0).toLowerCase() +
-                  diff.difficulty.slice(1);
-                const star = starRatings?.[characteristic]?.[diffKey];
-
+                const star =
+                  starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
                 return (
                   <span
                     key={idx}
                     className={`px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm flex items-center gap-1 ${
-                      star
+                      star !== undefined
                         ? "border border-yellow-400 bg-yellow-700/40 text-yellow-100"
                         : diffColors[diff.difficulty] ||
                           "bg-neutral-700/60 text-cyan-100"
