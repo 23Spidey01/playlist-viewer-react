@@ -1,58 +1,42 @@
 import React, { useEffect, useState } from "react";
 import SongCard from "./SongCard";
-import type { BSSongInfo } from "./types";
-
-interface DetailedSong {
-  song_cover: string;
-  song_difficulty: string;
-  song_id: string;
-  song_name: string;
-  song_plays: number;
-  song_stars: number;
-}
+import type { BSSongInfo, DetailedSong } from "./types";
+import { diffMap, charMap } from "./types";
 
 interface SongListProps {
   poolId: string;
 }
 
-const diffMap: Record<string, string> = {
-  ep: "ExpertPlus",
-  ex: "Expert",
-  h: "Hard",
-  n: "Normal",
-  e: "Easy",
-};
-const charMap: Record<string, string> = {
-  s: "Standard",
-  sll: "Lawless",
-  sos: "OneSaber",
-  sna: "NoArrows",
-  s90: "90Degree",
-  s360: "360Degree",
-  sls: "Lightshow",
-};
-
 const SongList: React.FC<SongListProps> = ({ poolId }) => {
+  // State für alle Songs aus Hitbloq (ranked_list_detailed)
   const [songs, setSongs] = useState<DetailedSong[]>([]);
+  // State für alle Songs, die von BeatSaver gefunden wurden
   const [bsSongs, setBsSongs] = useState<BSSongInfo[]>([]);
+  // Ladeanzeige
   const [loading, setLoading] = useState(false);
-  const [starRatingMap, setStarRatingMap] = useState<Record<string, Record<string, Record<string, number>>>>({});
+  // Map für Star-Ratings: hash -> characteristic -> difficulty -> stars
+  const [starRatingMap, setStarRatingMap] = useState<
+    Record<string, Record<string, Record<string, number>>>
+  >({});
+  // Zeigt an, ob die Liste der fehlenden Songs angezeigt wird
   const [showMissing, setShowMissing] = useState(false);
 
+  // Lädt alle Songs aus dem gewählten Pool (Hitbloq API)
   useEffect(() => {
     if (!poolId) return;
     setLoading(true);
 
-    // Alle Songs aus ranked_list_detailed holen
     const fetchAllSongs = async () => {
       let page = 0;
       let allSongs: DetailedSong[] = [];
       while (true) {
-        const res = await fetch(`http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`);
+        const res = await fetch(
+          `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`
+        );
         const data = await res.json();
         if (!Array.isArray(data) || data.length === 0) break;
         allSongs = allSongs.concat(data);
-        if (data.length < 30) break;
+        if (data.length < 30) break; // Letzte Seite erreicht
         page++;
       }
       setSongs(allSongs);
@@ -62,14 +46,18 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     fetchAllSongs();
   }, [poolId]);
 
+  // Wenn Songs geladen wurden: Star-Rating-Map bauen und BeatSaver-Songs laden
   useEffect(() => {
     if (songs.length === 0) return;
     setStarRatingMap(buildStarRatingMap(songs));
-    const hashes = Array.from(new Set(songs.map(song => song.song_id.split("_")[0].toLowerCase())));
+    // Alle Hashes aus den Song-IDs extrahieren (kleingeschrieben, dedupliziert)
+    const hashes = Array.from(
+      new Set(songs.map((song) => song.song_id.split("_")[0].toLowerCase()))
+    );
     fetchBeatSaverSongs(hashes).then(setBsSongs);
   }, [songs]);
 
-  // BeatSaver-Infos holen
+  // Holt BeatSaver-Infos für alle Hashes (in Chunks, um Rate-Limits zu vermeiden)
   const fetchBeatSaverSongs = async (hashes: string[]) => {
     const CHUNK_SIZE = 50;
     const DELAY_MS = 250;
@@ -81,15 +69,15 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
       const data = await res.json();
       const songsArray = Object.values(data).filter(Boolean) as BSSongInfo[];
       results.push(...songsArray);
-      await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+      await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
     }
     return results;
   };
 
-  // Star-Rating-Map bauen
+  // Baut eine Map: hash -> characteristic -> difficulty -> starRating
   const buildStarRatingMap = (songs: DetailedSong[]) => {
     const map: Record<string, Record<string, Record<string, number>>> = {};
-    songs.forEach(song => {
+    songs.forEach((song) => {
       const parts = song.song_id.split("_");
       const hash = parts[0].toUpperCase();
       const diffShort = parts[1];
@@ -99,22 +87,31 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
 
       if (!map[hash]) map[hash] = {};
       if (!map[hash][characteristic]) map[hash][characteristic] = {};
-      map[hash][characteristic][difficulty] = song.song_stars;
+      if (typeof song.song_stars === "number") {
+        map[hash][characteristic][difficulty] = song.song_stars;
+      }
     });
     return map;
   };
 
-  // Hashes aus Hitbloq
-  const hitbloqHashes = songs.map(song => song.song_id.split("_")[0].toUpperCase());
-  // Hashes aus BeatSaver
-  const beatsaverHashes = bsSongs.map(song => song.versions?.[0]?.hash?.toUpperCase()).filter(Boolean);
-  // Fehlende Hashes
-  const missingHashes = Array.from(new Set(hitbloqHashes)).filter(hash => !beatsaverHashes.includes(hash));
+  // Hashes aus Hitbloq-Songs (uppercase)
+  const hitbloqHashes = songs.map((song) =>
+    song.song_id.split("_")[0].toUpperCase()
+  );
+  // Hashes aus BeatSaver-Songs (uppercase)
+  const beatsaverHashes = bsSongs
+    .map((song) => song.versions?.[0]?.hash?.toUpperCase())
+    .filter(Boolean);
+  // Hashes, die in Hitbloq aber nicht in BeatSaver sind
+  const missingHashes = Array.from(new Set(hitbloqHashes)).filter(
+    (hash) => !beatsaverHashes.includes(hash)
+  );
 
   return (
     <div>
+      {/* Ladeanzeige */}
       {loading && <p className="text-cyan-400">Pool wird geladen...</p>}
-      {/* Statistik */}
+      {/* Statistik und Aktionen */}
       {!loading && (
         <div className="mb-6 text-neutral-300 text-sm flex flex-wrap gap-4 items-center">
           <span>
@@ -125,6 +122,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
           </span>
           <span className="flex items-center gap-2 flex-wrap w-full">
             Nicht gefundene Songs: <b>{missingHashes.length}</b>
+            {/* Button zum Auf-/Zuklappen der fehlenden Hash-Liste */}
             {missingHashes.length > 0 && (
               <button
                 className="px-2 py-1 bg-neutral-700 text-neutral-200 rounded hover:bg-neutral-600 text-xs"
@@ -133,32 +131,42 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                 {showMissing ? "Liste verbergen" : "Liste anzeigen"}
               </button>
             )}
+            {/* Button zum Kopieren der fehlenden Hashes */}
             {missingHashes.length > 0 && (
               <button
                 className="px-2 py-1 bg-neutral-700 text-neutral-200 rounded hover:bg-neutral-600 text-xs"
-                onClick={() => navigator.clipboard.writeText(missingHashes.join("\n"))}
+                onClick={() =>
+                  navigator.clipboard.writeText(missingHashes.join("\n"))
+                }
               >
                 Hash-Liste kopieren
               </button>
             )}
-            {/* Recalculate CR Button - größer und rechtsbündig */}
+            {/* Button zum Neuberechnen der CR (rechtsbündig, groß) */}
             <button
               className="ml-auto px-6 py-3 bg-cyan-700 text-neutral-100 rounded-lg hover:bg-cyan-800 text-base font-bold shadow transition-all"
               style={{ minWidth: "180px" }}
               onClick={async () => {
-                const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                const key = prompt(
+                  "Bitte gib den API-Key für diesen Pool ein:"
+                );
                 if (!key) return alert("Kein API-Key eingegeben.");
                 setLoading(true);
-                const res = await fetch("http://localhost:3001/proxy/recalculate_cr", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ key, pool: poolId }),
-                });
+                const res = await fetch(
+                  "http://localhost:3001/proxy/recalculate_cr",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ key, pool: poolId }),
+                  }
+                );
                 setLoading(false);
                 const result = await res.json();
-                alert(result.status === "success"
-                  ? "CR wurde neu berechnet!"
-                  : "Fehler: " + (result.error || result.status));
+                alert(
+                  result.status === "success"
+                    ? "CR wurde neu berechnet!"
+                    : "Fehler: " + (result.error || result.status)
+                );
               }}
             >
               CR neu berechnen
@@ -170,15 +178,18 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
       {!loading && missingHashes.length > 0 && showMissing && (
         <div className="mt-2 text-orange-400 text-xs">
           <ul className="list-disc pl-6">
-            {missingHashes.map(hash => {
-              const missingSongs = songs.filter(song => song.song_id.startsWith(hash));
+            {/* Für jeden fehlenden Hash alle zugehörigen Songs mit Difficulty/Characteristic anzeigen */}
+            {missingHashes.map((hash) => {
+              const missingSongs = songs.filter((song) =>
+                song.song_id.startsWith(hash)
+              );
               return missingSongs.map((song) => {
                 const parts = song.song_id.split("_");
                 const diffShort = parts[1];
                 const charShort = parts[2];
                 const difficulty = diffMap[diffShort] || diffShort;
                 const characteristic = charMap[charShort] || charShort;
-                // Song-ID im gewünschten Format
+                // Song-ID im gewünschten Format für Unrank-API
                 const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
                 return (
                   <li key={song.song_id}>
@@ -188,18 +199,25 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
               });
             })}
           </ul>
-          {/* Unrank-Button */}
+          {/* Button: Alle fehlenden Songs als unranked an die API senden */}
           <button
             className="mt-4 px-3 py-2 bg-red-700 text-white rounded hover:bg-red-800 font-semibold"
             onClick={async () => {
               const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
               if (!key) return alert("Kein API-Key eingegeben.");
-              if (!confirm("Bist du sicher, dass du alle fehlenden Songs unranked senden möchtest?")) return;
+              if (
+                !confirm(
+                  "Bist du sicher, dass du alle fehlenden Songs unranked senden möchtest?"
+                )
+              )
+                return;
 
               setLoading(true);
               let count = 0;
               for (const hash of missingHashes) {
-                const missingSongs = songs.filter(song => song.song_id.startsWith(hash));
+                const missingSongs = songs.filter((song) =>
+                  song.song_id.startsWith(hash)
+                );
                 for (const song of missingSongs) {
                   const parts = song.song_id.split("_");
                   const diffShort = parts[1];
@@ -228,18 +246,21 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
           </button>
         </div>
       )}
-      {/* Nur BeatSaver SongCards anzeigen */}
+      {/* BeatSaver SongCards anzeigen */}
       {!loading && bsSongs.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {bsSongs.map((song) => (
             <SongCard
               key={song.versions?.[0]?.hash || song.id}
               song={song}
-              starRatings={starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}}
+              starRatings={
+                starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}
+              }
             />
           ))}
         </div>
       )}
+      {/* Hinweis, falls keine Songs gefunden wurden */}
       {!loading && bsSongs.length === 0 && (
         <p className="text-orange-400">Keine Songs gefunden.</p>
       )}

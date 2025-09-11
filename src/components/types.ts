@@ -107,3 +107,67 @@ export interface BSParitySummary {
   warns: number;
   resets: number;
 }
+
+//Hitbloq translations
+export const diffMap: Record<string, string> = {
+  ep: "ExpertPlus",
+  ex: "Expert",
+  h: "Hard",
+  n: "Normal",
+  e: "Easy",
+};
+export const charMap: Record<string, string> = {
+  s: "Standard",
+  sll: "Lawless",
+  sos: "OneSaber",
+  sna: "NoArrows",
+  s90: "90Degree",
+  s360: "360Degree",
+  sls: "Lightshow",
+};
+
+export interface DetailedSong {
+  song_cover: string;
+  song_difficulty: string;
+  song_id: string;
+  song_name?: string;
+  song_plays?: number;
+  song_stars?: number;
+}
+
+// Difficulty-Farben für Tailwind
+export const diffColors: Record<string, string> = {
+  Easy: "bg-green-600/60 text-green-100",
+  Normal: "bg-blue-600/60 text-blue-100",
+  Hard: "bg-yellow-600/60 text-yellow-100",
+  Expert: "bg-orange-600/60 text-orange-100",
+  ExpertPlus: "bg-red-600/60 text-red-100",
+};
+
+// Labels für Characteristics
+export const characteristicLabels: Record<string, string> = {
+  Standard: "Standard",
+  Lawless: "Lawless",
+  Lightshow: "Lightshow",
+  NoArrows: "No Arrows",
+  "360Degree": "360°",
+};
+
+// Icon-Imports für Characteristics
+import standardIcon from "../assets/Icons/standard.svg";
+import onesaberIcon from "../assets/Icons/onesaber.svg";
+import lawlessIcon from "../assets/Icons/lawless.svg";
+import lightshowIcon from "../assets/Icons/lightshow.svg";
+import noarrowsIcon from "../assets/Icons/noarrows.svg";
+import threesixtydegreeIcon from "../assets/Icons/360degree.svg";
+import ninetydegreeIcon from "../assets/Icons/90degree.svg";
+
+export const characteristicIcons: Record<string, string> = {
+  Standard: standardIcon,
+  Lawless: lawlessIcon,
+  OneSaber: onesaberIcon,
+  NoArrows: noarrowsIcon,
+  "90Degree": ninetydegreeIcon,
+  "360Degree": threesixtydegreeIcon,
+  Lightshow: lightshowIcon,
+};

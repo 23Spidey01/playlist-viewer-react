@@ -1,45 +1,25 @@
 // SongCard.tsx
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import type { BSSongInfo, BSDifficulty } from "./types";
-import standardIcon from "../assets/Icons/standard.svg";
-import onesaberIcon from "../assets/Icons/onesaber.svg";
-import lawlessIcon from "../assets/Icons/lawless.svg";
-import lightshowIcon from "../assets/Icons/lightshow.svg";
-import noarrowsIcon from "../assets/Icons/noarrows.svg";
-import threesixtydegreeIcon from "../assets/Icons/360degree.svg";
-import ninetydegreeIcon from "../assets/Icons/90degree.svg";
+import { characteristicIcons, diffColors } from "./types"; // <--- importiert
+import beatsaverIcon from "../assets/Icons/beatsaver.png";
+import beatleaderIcon from "../assets/Icons/beatleader.svg";
 
+// Props für die SongCard: Songdaten und optionale Star-Ratings
 interface SongCardProps {
   song: BSSongInfo;
   starRatings?: Record<string, Record<string, number>>;
 }
 
-// Icons für die Characteristics
-const characteristicIcons: Record<string, string> = {
-  Standard: standardIcon,
-  Lawless: lawlessIcon,
-  OneSaber: onesaberIcon,
-  NoArrows: noarrowsIcon,
-  "90Degree": ninetydegreeIcon,
-  "360Degree": threesixtydegreeIcon,
-  Lightshow: lightshowIcon,
-};
-
-// Farben für die Difficulties
-const diffColors: Record<string, string> = {
-  Easy: "bg-green-600/60 text-green-100",
-  Normal: "bg-blue-600/60 text-blue-100",
-  Hard: "bg-yellow-600/60 text-yellow-100",
-  Expert: "bg-orange-600/60 text-orange-100",
-  ExpertPlus: "bg-red-600/60 text-red-100",
-};
-
 const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
+  const navigate = useNavigate();
+  // Cover-URL und Difficulties aus dem Song holen
   const coverUrl = song.versions?.[0]?.coverURL || "";
   const difficulties: BSDifficulty[] = song.versions?.[0]?.diffs || [];
   const uploadDate = new Date(song.uploaded).toLocaleDateString();
 
-  // Difficulties nach characteristic gruppieren
+  // Difficulties nach characteristic gruppieren (z.B. Standard, Lawless, ...)
   const grouped: Record<string, BSDifficulty[]> = {};
   difficulties.forEach((diff) => {
     if (!grouped[diff.characteristic]) grouped[diff.characteristic] = [];
@@ -47,7 +27,17 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
   });
 
   return (
-    <div className="border border-neutral-700 rounded-xl p-4 shadow bg-neutral-800 flex flex-col hover:shadow-lg transition-all duration-200 w-full">
+    <div
+      // Card-Design, klickbar, auch per Tastatur (Enter)
+      className="border border-neutral-700 rounded-xl p-4 shadow bg-neutral-800 flex flex-col hover:shadow-lg transition-all duration-200 w-full cursor-pointer"
+      onClick={() => navigate(`/song/${song.id}`, { state: { starRatings } })}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") navigate(`/song/${song.id}`, { state: { starRatings } });
+      }}
+    >
+      {/* Song-Cover und Metadaten */}
       <div className="flex gap-4 mb-3">
         {coverUrl && (
           <img
@@ -86,12 +76,13 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
             )}
             {/* Alle Difficulties dieser characteristic */}
             <div className="flex flex-wrap gap-2">
-              {diffs.map((diff, idx) => {
+              {diffs.map((diff) => {
+                // Star-Rating für diese Difficulty/Characteristic (falls vorhanden)
                 const star =
                   starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
                 return (
                   <span
-                    key={idx}
+                    key={`${characteristic}-${diff.difficulty}`}
                     className={`px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm flex items-center gap-1 ${
                       star !== undefined
                         ? "border border-yellow-400 bg-yellow-700/40 text-yellow-100"
@@ -100,6 +91,7 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
                     }`}
                   >
                     {diff.difficulty}
+                    {/* Star-Rating anzeigen, falls vorhanden */}
                     {star !== undefined && (
                       <span className="ml-1 inline-flex items-center gap-1">
                         <svg
@@ -121,16 +113,39 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
           </div>
         ))}
       </div>
+      {/* Upload-Datum und externe Links */}
       <div className="w-full flex justify-between items-center text-xs text-neutral-400 mt-auto">
         <span>Hochgeladen: {uploadDate}</span>
-        <a
-          href={`https://beatsaver.com/maps/${song.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-cyan-400 hover:text-orange-400 hover:underline"
-        >
-          BeatSaver öffnen
-        </a>
+        <div className="flex items-center gap-2">
+          {/* BeatLeader-Link */}
+          <a
+            href={`https://beatleader.com/leaderboard/global/${song.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-cyan-400 hover:scale-110 transition-transform"
+            title="BeatLeader öffnen"
+          >
+            <img
+              src={beatleaderIcon}
+              alt="BeatLeader"
+              className="w-6 h-6 inline-block"
+            />
+          </a>
+          {/* BeatSaver-Link */}
+          <a
+            href={`https://beatsaver.com/maps/${song.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-orange-400 hover:scale-110 transition-transform"
+            title="BeatSaver öffnen"
+          >
+            <img
+              src={beatsaverIcon}
+              alt="BeatSaver"
+              className="w-6 h-6 inline-block"
+            />
+          </a>
+        </div>
       </div>
     </div>
   );
