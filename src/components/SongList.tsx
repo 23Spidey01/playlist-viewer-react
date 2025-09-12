@@ -27,7 +27,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     // Prüfe, ob Songs schon im Cache sind
     if (cache[poolId]?.songs?.length) {
       setSongs(cache[poolId].songs);
-      setBsSongs(cache[poolId].bsSongs); // <- jetzt korrekt!
+      setBsSongs(cache[poolId].bsSongs);
       setStarRatingMap(cache[poolId].starRatingMap);
       setLoading(false);
       return;
@@ -62,7 +62,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
         ...old,
         [poolId]: {
           songs: allSongs,
-          bsSongs: loadedBsSongs, // <--- jetzt werden sie gecached!
+          bsSongs: loadedBsSongs,
           starRatingMap: buildStarRatingMap(allSongs),
         },
       }));

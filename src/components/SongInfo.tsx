@@ -20,6 +20,8 @@ const SongInfo: React.FC = () => {
 
   // State für die Songdaten von BeatSaver
   const [song, setSong] = useState<BSSongInfo | null>(null);
+  // State für bereits gerankte Difficulties (um Button zu deaktivieren)
+  const [ranking, setRanking] = useState<{ [key: string]: boolean }>({});
 
   // Songdaten von BeatSaver laden, wenn ID sich ändert
   useEffect(() => {
@@ -87,11 +89,186 @@ const SongInfo: React.FC = () => {
               {/* Alle Difficulties dieser characteristic */}
               <div className="flex flex-wrap gap-3">
                 {diffs.map((diff) => {
-                  const star =
-                    starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
+                  const star = starRatings?.[characteristic]?.[diff.difficulty];
+                  const diffKey = `${characteristic}-${diff.difficulty}`;
+                  const songHash = song.versions?.[0]?.hash?.toUpperCase();
+                  const canRank = (star === undefined) && poolId && songHash;
+                  const canUnrank = (star !== undefined) && poolId && songHash;
+
+                  // Handler für den Rank-Button
+                  const handleRank = async () => {
+                    if (!poolId || !songHash) return;
+                    setRanking((r) => ({ ...r, [diffKey]: true }));
+                    const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                    if (!key) {
+                      setRanking((r) => ({ ...r, [diffKey]: false }));
+                      return alert("Kein API-Key eingegeben.");
+                    }
+                    const formattedId = `${songHash}|_${diff.difficulty}_Solo${characteristic}`;
+
+                    // Zuerst Difficulty ranken (wie bisher)
+                    const bodyRank = { key, pool: poolId, song: formattedId };
+                    const resRank = await fetch("http://localhost:3001/proxy/rank", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(bodyRank),
+                    });
+                    const resultRank = await resRank.json();
+
+                    if (resultRank.status === "success") {
+                      // Jetzt nach Automatic/Manual fragen
+                      const isAutomatic = window.confirm(
+                        "Star Rating automatisch berechnen?\n\nOK = Automatisch\nAbbrechen = Manuell"
+                      );
+
+                      let resultSet;
+                      if (isAutomatic) {
+                        // Automatisch
+                        const body = { key, pool: poolId, song: formattedId };
+                        const res = await fetch("http://localhost:3001/proxy/set_automatic", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(body),
+                        });
+                        resultSet = await res.json();
+                      } else {
+                        // Manuell
+                        let rating = prompt("Auf welches Star Rating soll gesetzt werden? (z.B. 8.5)");
+                        if (!rating) {
+                          setRanking((r) => ({ ...r, [diffKey]: false }));
+                          return alert("Kein Star Rating eingegeben.");
+                        }
+                        rating = rating.replace(",", ".");
+                        const ratingNum = parseFloat(rating);
+                        if (isNaN(ratingNum) || ratingNum < 0) {
+                          setRanking((r) => ({ ...r, [diffKey]: false }));
+                          return alert("Ungültiges Star Rating.");
+                        }
+                        const body = { key, pool: poolId, song: formattedId, rating: ratingNum };
+                        const res = await fetch("http://localhost:3001/proxy/set_manual", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(body),
+                        });
+                        resultSet = await res.json();
+                      }
+
+                      if (resultSet.status === "success") {
+                        alert("Difficulty wurde gerankt und das Star Rating gesetzt!");
+                        // CR RECALCULATE AUFRUFEN
+                        await fetch("http://localhost:3001/proxy/recalculate_cr", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ key, pool: poolId }),
+                        });
+                        window.location.reload();
+                      } else {
+                        alert("Fehler beim Setzen des Star Ratings: " + (resultSet.error || resultSet.status));
+                      }
+                    } else {
+                      alert("Fehler beim Ranken: " + (resultRank.error || resultRank.status));
+                    }
+                    setRanking((r) => ({ ...r, [diffKey]: false }));
+                  };
+
+                  // Handler für den Unrank-Button
+                  const handleUnrank = async () => {
+                    if (!poolId || !songHash) return;
+                    setRanking((r) => ({ ...r, [diffKey]: true }));
+                    const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                    if (!key) {
+                      setRanking((r) => ({ ...r, [diffKey]: false }));
+                      return alert("Kein API-Key eingegeben.");
+                    }
+                    const formattedId = `${songHash}|_${diff.difficulty}_Solo${characteristic}`;
+                    const body = { key, pool: poolId, song: formattedId };
+                    const res = await fetch("http://localhost:3001/proxy/unrank", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(body),
+                    });
+                    const result = await res.json();
+                    if (result.status === "success") {
+                      alert("Difficulty wurde unranked!");
+                      // CR RECALCULATE AUFRUFEN
+                      await fetch("http://localhost:3001/proxy/recalculate_cr", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ key, pool: poolId }),
+                      });
+                      window.location.reload();
+                    } else {
+                      alert("Fehler: " + (result.error || result.status));
+                    }
+                    setRanking((r) => ({ ...r, [diffKey]: false }));
+                  };
+
+                  // Handler für den Set Star Rating-Button
+                  const handleSetStarRating = async () => {
+                    if (!poolId || !songHash) return;
+                    setRanking((r) => ({ ...r, [diffKey]: true }));
+                    const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                    if (!key) {
+                      setRanking((r) => ({ ...r, [diffKey]: false }));
+                      return alert("Kein API-Key eingegeben.");
+                    }
+                    const formattedId = `${songHash}|_${diff.difficulty}_Solo${characteristic}`;
+
+                    // Automatisch oder manuell?
+                    const isAutomatic = window.confirm(
+                      "Star Rating automatisch berechnen?\n\nOK = Automatisch\nAbbrechen = Manuell"
+                    );
+
+                    let resultSet;
+                    if (isAutomatic) {
+                      // Automatisch
+                      const body = { key, pool: poolId, song: formattedId };
+                      const res = await fetch("http://localhost:3001/proxy/set_automatic", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body),
+                      });
+                      resultSet = await res.json();
+                    } else {
+                      // Manuell
+                      let rating = prompt("Auf welches Star Rating soll gesetzt werden? (z.B. 8.5)");
+                      if (!rating) {
+                        setRanking((r) => ({ ...r, [diffKey]: false }));
+                        return alert("Kein Star Rating eingegeben.");
+                      }
+                      rating = rating.replace(",", ".");
+                      const ratingNum = parseFloat(rating);
+                      if (isNaN(ratingNum) || ratingNum < 0) {
+                        setRanking((r) => ({ ...r, [diffKey]: false }));
+                        return alert("Ungültiges Star Rating.");
+                      }
+                      const body = { key, pool: poolId, song: formattedId, rating: ratingNum };
+                      const res = await fetch("http://localhost:3001/proxy/set_manual", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body),
+                      });
+                      resultSet = await res.json();
+                    }
+
+                    if (resultSet.status === "success") {
+                      alert("Star Rating wurde gesetzt!");
+                      // CR RECALCULATE AUFRUFEN
+                      await fetch("http://localhost:3001/proxy/recalculate_cr", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ key, pool: poolId }),
+                      });
+                      window.location.reload();
+                    } else {
+                      alert("Fehler beim Setzen des Star Ratings: " + (resultSet.error || resultSet.status));
+                    }
+                    setRanking((r) => ({ ...r, [diffKey]: false }));
+                  };
+
                   return (
                     <span
-                      key={`${characteristic}-${diff.difficulty}`}
+                      key={diffKey}
                       className={`px-4 py-2 rounded-lg text-lg font-bold shadow backdrop-blur-sm flex flex-col items-start gap-1 ${
                         star !== undefined
                           ? "border border-yellow-400 bg-yellow-700/40 text-yellow-100"
@@ -99,7 +276,7 @@ const SongInfo: React.FC = () => {
                             "bg-neutral-700/60 text-cyan-100"
                       }`}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 w-full">
                         {diff.difficulty}
                         {star !== undefined && (
                           <span className="inline-flex items-center gap-1">
@@ -115,6 +292,37 @@ const SongInfo: React.FC = () => {
                             </span>
                           </span>
                         )}
+                        <span className="ml-auto flex gap-2">
+                          {/* Rank-Button für unranked Difficulties */}
+                          {canRank && (
+                            <button
+                              className="px-2 py-1 bg-cyan-700 text-white rounded text-xs hover:bg-cyan-800 transition disabled:opacity-50"
+                              onClick={handleRank}
+                              disabled={ranking[diffKey]}
+                            >
+                              {ranking[diffKey] ? "Ranking..." : "Rank"}
+                            </button>
+                          )}
+                          {/* Unrank-Button für gerankte Difficulties */}
+                          {canUnrank && (
+                            <>
+                              <button
+                                className="px-2 py-1 bg-red-700 text-white rounded text-xs hover:bg-red-800 transition disabled:opacity-50"
+                                onClick={handleUnrank}
+                                disabled={ranking[diffKey]}
+                              >
+                                {ranking[diffKey] ? "Unranking..." : "Unrank"}
+                              </button>
+                              <button
+                                className="px-2 py-1 bg-yellow-700 text-white rounded text-xs hover:bg-yellow-800 transition disabled:opacity-50"
+                                onClick={handleSetStarRating}
+                                disabled={ranking[diffKey]}
+                              >
+                                {ranking[diffKey] ? "Setting..." : "Set Star Rating"}
+                              </button>
+                            </>
+                          )}
+                        </span>
                       </span>
                       {/* Zusatzinfos direkt im Badge, kleiner und grau */}
                       <span className="text-xs text-neutral-300 font-normal">

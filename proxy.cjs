@@ -24,6 +24,22 @@ app.post("/proxy/unrank", async (req, res) => {
   }
 });
 
+app.post("/proxy/rank", async (req, res) => {
+  const response = await fetch("https://hitbloq.com/api/pools/rank", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req.body),
+  });
+  const text = await response.text();
+  console.log("Hitbloq Response:", text);
+  try {
+    const data = JSON.parse(text);
+    res.json(data);
+  } catch (e) {
+    res.status(500).send(text);
+  }
+});
+
 app.get("/proxy/map_pools_detailed", async (req, res) => {
   const response = await fetch("https://hitbloq.com/api/map_pools_detailed");
   const text = await response.text();
@@ -52,6 +68,38 @@ app.get("/proxy/ranked_list_detailed/:pool_id/:page", async (req, res) => {
 
 app.post("/proxy/recalculate_cr", async (req, res) => {
   const response = await fetch("https://hitbloq.com/api/pools/recalculate_cr", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req.body),
+  });
+  const text = await response.text();
+  console.log("Hitbloq Response:", text);
+  try {
+    const data = JSON.parse(text);
+    res.json(data);
+  } catch (e) {
+    res.status(500).send(text);
+  }
+});
+
+app.post("/proxy/set_manual", async (req, res) => {
+  const response = await fetch("https://hitbloq.com/api/pools/set_manual", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req.body),
+  });
+  const text = await response.text();
+  console.log("Hitbloq Response:", text);
+  try {
+    const data = JSON.parse(text);
+    res.json(data);
+  } catch (e) {
+    res.status(500).send(text);
+  }
+});
+
+app.post("/proxy/set_automatic", async (req, res) => {
+  const response = await fetch("https://hitbloq.com/api/pools/set_automatic", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req.body),

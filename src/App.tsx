@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BrowserRouter as Router, Routes, Route, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, Link } from "react-router-dom";
 import SongList from "./components/SongList";
 import SongInfo from "./components/SongInfo";
 import { SongPoolProvider } from "./components/SongPoolProvider";
@@ -161,7 +161,9 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-neutral-900 font-sans">
           <div className="w-full max-w-screen-2xl mx-auto px-4 py-8">
             <h1 className="text-4xl font-bold mb-8 text-cyan-400 text-center tracking-tight">
-              Hitbloq Pool Manager
+              <Link to="/" className="hover:underline hover:text-cyan-300 transition-colors">
+                Hitbloq Pool Manager
+              </Link>
             </h1>
             <Routes>
               <Route path="/" element={<PoolOverview pools={pools} />} />
