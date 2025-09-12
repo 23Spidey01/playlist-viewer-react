@@ -71,21 +71,10 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     fetchAllSongs();
   }, [poolId, cache, setCache]);
 
-  // Wenn Songs geladen wurden: Star-Rating-Map bauen und BeatSaver-Songs laden
-  useEffect(() => {
-    if (songs.length === 0) return;
-    setStarRatingMap(buildStarRatingMap(songs));
-    // Alle Hashes aus den Song-IDs extrahieren (kleingeschrieben, dedupliziert)
-    const hashes = Array.from(
-      new Set(songs.map((song) => song.song_id.split("_")[0].toLowerCase()))
-    );
-    fetchBeatSaverSongs(hashes).then(setBsSongs);
-  }, [songs]);
-
   // Holt BeatSaver-Infos für alle Hashes (in Chunks, um Rate-Limits zu vermeiden)
   const fetchBeatSaverSongs = async (hashes: string[]) => {
     const CHUNK_SIZE = 50;
-    const DELAY_MS = 250;
+    const DELAY_MS = 50;
     const results: BSSongInfo[] = [];
     for (let i = 0; i < hashes.length; i += CHUNK_SIZE) {
       const chunk = hashes.slice(i, i + CHUNK_SIZE);
