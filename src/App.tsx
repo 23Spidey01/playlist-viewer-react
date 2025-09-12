@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, Link } 
 import SongList from "./components/SongList";
 import SongInfo from "./components/SongInfo";
 import { SongPoolProvider } from "./components/SongPoolProvider";
+import RankNewMaps from "./components/RankNewMaps";
 
 interface PoolDetailed {
   id: string;
@@ -169,6 +170,7 @@ const App: React.FC = () => {
               <Route path="/" element={<PoolOverview pools={pools} />} />
               <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
               <Route path="/song/:id" element={<SongInfo />} />
+              <Route path="/pool/:poolId/rank-new" element={<RankNewMaps />} />
             </Routes>
           </div>
         </div>

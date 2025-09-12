@@ -156,35 +156,43 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                 Hash-Liste kopieren
               </button>
             )}
-            {/* Button zum Neuberechnen der CR (rechtsbündig, groß) */}
-            <button
-              className="ml-auto px-6 py-3 bg-cyan-700 text-neutral-100 rounded-lg hover:bg-cyan-800 text-base font-bold shadow transition-all"
-              style={{ minWidth: "180px" }}
-              onClick={async () => {
-                const key = prompt(
-                  "Bitte gib den API-Key für diesen Pool ein:"
-                );
-                if (!key) return alert("Kein API-Key eingegeben.");
-                setLoading(true);
-                const res = await fetch(
-                  "http://localhost:3001/proxy/recalculate_cr",
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ key, pool: poolId }),
-                  }
-                );
-                setLoading(false);
-                const result = await res.json();
-                alert(
-                  result.status === "success"
-                    ? "CR wurde neu berechnet!"
-                    : "Fehler: " + (result.error || result.status)
-                );
-              }}
-            >
-              CR neu berechnen
-            </button>
+            <div className="flex w-full mt-2">
+              <button
+                className="px-6 py-3 bg-green-700 text-neutral-100 rounded-lg hover:bg-green-800 text-base font-bold shadow transition-all mr-4"
+                style={{ minWidth: "180px" }}
+                onClick={() => window.location.href = `/pool/${poolId}/rank-new`}
+              >
+                Rank new maps
+              </button>
+              <button
+                className="px-6 py-3 bg-cyan-700 text-neutral-100 rounded-lg hover:bg-cyan-800 text-base font-bold shadow transition-all"
+                style={{ minWidth: "180px" }}
+                onClick={async () => {
+                  const key = prompt(
+                    "Bitte gib den API-Key für diesen Pool ein:"
+                  );
+                  if (!key) return alert("Kein API-Key eingegeben.");
+                  setLoading(true);
+                  const res = await fetch(
+                    "http://localhost:3001/proxy/recalculate_cr",
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ key, pool: poolId }),
+                    }
+                  );
+                  setLoading(false);
+                  const result = await res.json();
+                  alert(
+                    result.status === "success"
+                      ? "CR wurde neu berechnet!"
+                      : "Fehler: " + (result.error || result.status)
+                  );
+                }}
+              >
+                CR neu berechnen
+              </button>
+            </div>
           </span>
         </div>
       )}
