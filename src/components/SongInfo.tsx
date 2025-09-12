@@ -15,6 +15,7 @@ const SongInfo: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   // Router-State für Star-Ratings (wird von SongCard übergeben)
   const location = useLocation();
+  const poolId = location.state?.poolId;
   const starRatings: Record<string, Record<string, number>> | undefined = location.state?.starRatings;
 
   // State für die Songdaten von BeatSaver
@@ -42,7 +43,12 @@ const SongInfo: React.FC = () => {
   return (
     <div className="max-w-8xl mx-auto p-6 bg-neutral-900 rounded-xl shadow text-neutral-100">
       {/* Zurück-Link */}
-      <Link to="/" className="text-cyan-400 hover:underline mb-4 inline-block">← Zurück</Link>
+      <Link
+        to={poolId ? `/pool/${poolId}` : "/"}
+        className="text-cyan-400 hover:underline mb-4 inline-block"
+      >
+        ← Zurück
+      </Link>
       {/* Song-Cover und Metadaten */}
       <div className="flex gap-6 mb-6">
         <img src={song.versions?.[0]?.coverURL} alt={song.metadata.songName} className="w-40 h-40 rounded-lg border border-neutral-700" />

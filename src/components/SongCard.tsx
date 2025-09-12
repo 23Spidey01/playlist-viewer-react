@@ -10,9 +10,10 @@ import beatleaderIcon from "../assets/Icons/beatleader.svg";
 interface SongCardProps {
   song: BSSongInfo;
   starRatings?: Record<string, Record<string, number>>;
+  poolId: string;
 }
 
-const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
+const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId }) => {
   const navigate = useNavigate();
   // Cover-URL und Difficulties aus dem Song holen
   const coverUrl = song.versions?.[0]?.coverURL || "";
@@ -30,7 +31,7 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings }) => {
     <div
       // Card-Design, klickbar, auch per Tastatur (Enter)
       className="border border-neutral-700 rounded-xl p-4 shadow bg-neutral-800 flex flex-col hover:shadow-lg transition-all duration-200 w-full cursor-pointer"
-      onClick={() => navigate(`/song/${song.id}`, { state: { starRatings } })}
+      onClick={() => navigate(`/song/${song.id}`, { state: { starRatings, poolId } })}
       tabIndex={0}
       role="button"
       onKeyDown={(e) => {

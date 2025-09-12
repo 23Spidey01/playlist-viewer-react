@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import SongCard from "./SongCard";
 import type { BSSongInfo, DetailedSong } from "./types";
 import { diffMap, charMap } from "./types";
+import { useSongPoolCache } from "./useSongPoolCache";
 
 interface SongListProps {
   poolId: string;
@@ -15,15 +16,22 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
   // Ladeanzeige
   const [loading, setLoading] = useState(false);
   // Map für Star-Ratings: hash -> characteristic -> difficulty -> stars
-  const [starRatingMap, setStarRatingMap] = useState<
-    Record<string, Record<string, Record<string, number>>>
-  >({});
+  const [starRatingMap, setStarRatingMap] = useState<Record<string, Record<string, Record<string, number>>>>({});
   // Zeigt an, ob die Liste der fehlenden Songs angezeigt wird
   const [showMissing, setShowMissing] = useState(false);
+  const { cache, setCache } = useSongPoolCache();
 
   // Lädt alle Songs aus dem gewählten Pool (Hitbloq API)
   useEffect(() => {
     if (!poolId) return;
+    // Prüfe, ob Songs schon im Cache sind
+    if (cache[poolId]?.songs?.length) {
+      setSongs(cache[poolId].songs);
+      setBsSongs(cache[poolId].bsSongs); // <- jetzt korrekt!
+      setStarRatingMap(cache[poolId].starRatingMap);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
 
     const fetchAllSongs = async () => {
@@ -41,10 +49,27 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
       }
       setSongs(allSongs);
       setLoading(false);
+
+      // BeatSaver-Songs laden und dann alles in den Cache schreiben!
+      const hashes = Array.from(
+        new Set(allSongs.map((song) => song.song_id.split("_")[0].toLowerCase()))
+      );
+      const loadedBsSongs = await fetchBeatSaverSongs(hashes);
+
+      setBsSongs(loadedBsSongs);
+      setStarRatingMap(buildStarRatingMap(allSongs));
+      setCache((old) => ({
+        ...old,
+        [poolId]: {
+          songs: allSongs,
+          bsSongs: loadedBsSongs, // <--- jetzt werden sie gecached!
+          starRatingMap: buildStarRatingMap(allSongs),
+        },
+      }));
     };
 
     fetchAllSongs();
-  }, [poolId]);
+  }, [poolId, cache, setCache]);
 
   // Wenn Songs geladen wurden: Star-Rating-Map bauen und BeatSaver-Songs laden
   useEffect(() => {
@@ -256,6 +281,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
               starRatings={
                 starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}
               }
+              poolId={poolId}
             />
           ))}
         </div>

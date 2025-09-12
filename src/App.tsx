@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, useNavigate, useParams } from "react-router-dom";
 import SongList from "./components/SongList";
 import SongInfo from "./components/SongInfo";
+import { SongPoolProvider } from "./components/SongPoolProvider";
 
 interface PoolDetailed {
   id: string;
@@ -155,20 +156,22 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <Router>
-      <div className="min-h-screen bg-neutral-900 font-sans">
-        <div className="w-full max-w-screen-2xl mx-auto px-4 py-8">
-          <h1 className="text-4xl font-bold mb-8 text-cyan-400 text-center tracking-tight">
-            Hitbloq Pool Manager
-          </h1>
-          <Routes>
-            <Route path="/" element={<PoolOverview pools={pools} />} />
-            <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
-            <Route path="/song/:id" element={<SongInfo />} />
-          </Routes>
+    <SongPoolProvider>
+      <Router>
+        <div className="min-h-screen bg-neutral-900 font-sans">
+          <div className="w-full max-w-screen-2xl mx-auto px-4 py-8">
+            <h1 className="text-4xl font-bold mb-8 text-cyan-400 text-center tracking-tight">
+              Hitbloq Pool Manager
+            </h1>
+            <Routes>
+              <Route path="/" element={<PoolOverview pools={pools} />} />
+              <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
+              <Route path="/song/:id" element={<SongInfo />} />
+            </Routes>
+          </div>
         </div>
-      </div>
-    </Router>
+      </Router>
+    </SongPoolProvider>
   );
 };
 

@@ -171,3 +171,10 @@ export const characteristicIcons: Record<string, string> = {
   "360Degree": threesixtydegreeIcon,
   Lightshow: lightshowIcon,
 };
+export interface SongPoolCache {
+  [poolId: string]: {
+    songs: DetailedSong[];
+    bsSongs: BSSongInfo[];
+    starRatingMap: Record<string, Record<string, Record<string, number>>>; // 3 Ebenen!
+  };
+}
