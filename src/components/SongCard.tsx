@@ -2,18 +2,21 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import type { BSSongInfo, BSDifficulty } from "./types";
-import { characteristicIcons, diffColors } from "./types"; // <--- importiert
+import { characteristicIcons, diffColors } from "./types";
 import beatsaverIcon from "../assets/Icons/beatsaver.png";
 import beatleaderIcon from "../assets/Icons/beatleader.svg";
 
 // Props für die SongCard: Songdaten und optionale Star-Ratings
 interface SongCardProps {
   song: BSSongInfo;
-  starRatings?: Record<string, Record<string, number>>;
+  starRatings: Record<string, Record<string, number>>;
   poolId: string;
+  selectedDiffs: { [characteristic: string]: string[] };
+  onToggleDiff: (characteristic: string, difficulty: string) => void;
+  editMode: boolean;
 }
 
-const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId }) => {
+const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId, selectedDiffs, onToggleDiff, editMode }) => {
   const navigate = useNavigate();
   // Cover-URL und Difficulties aus dem Song holen
   const coverUrl = song.versions?.[0]?.coverURL || "";
@@ -78,9 +81,7 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId }) => {
             {/* Alle Difficulties dieser characteristic */}
             <div className="flex flex-wrap gap-2">
               {diffs.map((diff) => {
-                // Star-Rating für diese Difficulty/Characteristic (falls vorhanden)
-                const star =
-                  starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
+                const star = starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
                 return (
                   <span
                     key={`${characteristic}-${diff.difficulty}`}
@@ -91,6 +92,20 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId }) => {
                           "bg-neutral-700/60 text-cyan-100"
                     }`}
                   >
+                    {/* Checkbox direkt im Badge */}
+                    {editMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedDiffs[characteristic]?.includes(diff.difficulty) ?? false}
+                        onChange={e => {
+                          e.stopPropagation();
+                          onToggleDiff(characteristic, diff.difficulty);
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        className="w-3 h-3 accent-cyan-400 mr-1"
+                        title="Für Pool auswählen"
+                      />
+                    )}
                     {diff.difficulty}
                     {/* Star-Rating anzeigen, falls vorhanden */}
                     {star !== undefined && (
