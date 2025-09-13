@@ -3,6 +3,7 @@ import SongCard from "./SongCard";
 import type { BSSongInfo, DetailedSong } from "./types";
 import { diffMap, charMap } from "./types";
 import { useSongPoolCache } from "./useSongPoolCache";
+import { renderFunnyHahaPaulsSongs } from "./PoolFeatures/FunnyHahaPauls";
 
 interface SongListProps {
   poolId: string;
@@ -504,25 +505,27 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
       </div>
 
       {/* BeatSaver SongCards anzeigen */}
-      {!loading && bsSongs.length > 0 && (
+      {!loading && bsSongs.length > 0 && poolId === "funny_haha_pauls" && (
+        renderFunnyHahaPaulsSongs(
+          bsSongs,
+          starRatingMap,
+          poolId,
+          selectedDiffs,
+          toggleDiffSelection,
+          editMode
+        )
+      )}
+      {!loading && bsSongs.length > 0 && poolId !== "funny_haha_pauls" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {bsSongs.map((song) => (
             <SongCard
               key={song.versions?.[0]?.hash || song.id}
               song={song}
-              starRatings={
-                starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}
-              }
+              starRatings={starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}}
               poolId={poolId}
-              selectedDiffs={
-                selectedDiffs[song.versions?.[0]?.hash?.toUpperCase()] || {}
-              }
+              selectedDiffs={selectedDiffs[song.versions?.[0]?.hash?.toUpperCase()] || {}}
               onToggleDiff={(characteristic, difficulty) =>
-                toggleDiffSelection(
-                  song.versions?.[0]?.hash?.toUpperCase(),
-                  characteristic,
-                  difficulty
-                )
+                toggleDiffSelection(song.versions?.[0]?.hash?.toUpperCase(), characteristic, difficulty)
               }
               editMode={editMode}
             />

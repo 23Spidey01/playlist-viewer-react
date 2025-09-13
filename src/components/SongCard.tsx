@@ -9,14 +9,22 @@ import beatleaderIcon from "../assets/Icons/beatleader.svg";
 // Props für die SongCard: Songdaten und optionale Star-Ratings
 interface SongCardProps {
   song: BSSongInfo;
-  starRatings: Record<string, Record<string, number>>;
+  starRatings: any;
   poolId: string;
-  selectedDiffs: { [characteristic: string]: string[] };
-  onToggleDiff: (characteristic: string, difficulty: string) => void;
+  selectedDiffs: any;
+  onToggleDiff: (characteristic: string, difficulty: string) => any;
   editMode: boolean;
+  isNew?: boolean;
 }
 
-const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId, selectedDiffs, onToggleDiff, editMode }) => {
+const SongCard: React.FC<SongCardProps> = ({
+  song,
+  starRatings,
+  poolId,
+  selectedDiffs,
+  onToggleDiff,
+  editMode,
+}) => {
   const navigate = useNavigate();
   // Cover-URL und Difficulties aus dem Song holen
   const coverUrl = song.versions?.[0]?.coverURL || "";
@@ -34,11 +42,14 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId, selected
     <div
       // Card-Design, klickbar, auch per Tastatur (Enter)
       className="border border-neutral-700 rounded-xl p-4 shadow bg-neutral-800 flex flex-col hover:shadow-lg transition-all duration-200 w-full cursor-pointer"
-      onClick={() => navigate(`/song/${song.id}`, { state: { starRatings, poolId } })}
+      onClick={() =>
+        navigate(`/song/${song.id}`, { state: { starRatings, poolId } })
+      }
       tabIndex={0}
       role="button"
       onKeyDown={(e) => {
-        if (e.key === "Enter") navigate(`/song/${song.id}`, { state: { starRatings } });
+        if (e.key === "Enter")
+          navigate(`/song/${song.id}`, { state: { starRatings } });
       }}
     >
       {/* Song-Cover und Metadaten */}
@@ -81,7 +92,8 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId, selected
             {/* Alle Difficulties dieser characteristic */}
             <div className="flex flex-wrap gap-2">
               {diffs.map((diff) => {
-                const star = starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
+                const star =
+                  starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
                 return (
                   <span
                     key={`${characteristic}-${diff.difficulty}`}
@@ -96,12 +108,16 @@ const SongCard: React.FC<SongCardProps> = ({ song, starRatings, poolId, selected
                     {editMode && (
                       <input
                         type="checkbox"
-                        checked={selectedDiffs[characteristic]?.includes(diff.difficulty) ?? false}
-                        onChange={e => {
+                        checked={
+                          selectedDiffs[characteristic]?.includes(
+                            diff.difficulty
+                          ) ?? false
+                        }
+                        onChange={(e) => {
                           e.stopPropagation();
                           onToggleDiff(characteristic, diff.difficulty);
                         }}
-                        onClick={e => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                         className="w-3 h-3 accent-cyan-400 mr-1"
                         title="Für Pool auswählen"
                       />
