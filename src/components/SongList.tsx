@@ -59,8 +59,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
         page++;
       }
       setSongs(allSongs);
-      setLoading(false);
-
+      
       // BeatSaver-Songs laden und dann alles in den Cache schreiben!
       const hashes = Array.from(
         new Set(
@@ -68,8 +67,9 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
         )
       );
       const loadedBsSongs = await fetchBeatSaverSongs(hashes);
-
+      
       setBsSongs(loadedBsSongs);
+      setLoading(false);
       setStarRatingMap(buildStarRatingMap(allSongs));
       setCache((old) => ({
         ...old,
