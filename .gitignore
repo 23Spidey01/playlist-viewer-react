@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+backend/src/main/resources/static/assets
+backend/src/main/resources/static/index.html
