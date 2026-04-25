@@ -135,7 +135,7 @@ export interface DetailedSong {
   song_stars?: number;
 }
 
-// Difficulty-Farben für Tailwind
+// Difficulty-Colors for Tailwind
 export const diffColors: Record<string, string> = {
   Easy: "bg-green-600/60 text-green-100",
   Normal: "bg-blue-600/60 text-blue-100",
@@ -144,7 +144,7 @@ export const diffColors: Record<string, string> = {
   ExpertPlus: "bg-red-600/60 text-red-100",
 };
 
-// Labels für Characteristics
+// Labels for Characteristics
 export const characteristicLabels: Record<string, string> = {
   Standard: "Standard",
   Lawless: "Lawless",
@@ -153,7 +153,7 @@ export const characteristicLabels: Record<string, string> = {
   "360Degree": "360°",
 };
 
-// Icon-Imports für Characteristics
+// Icon-Imports for Characteristics
 import standardIcon from "../assets/Icons/standard.svg";
 import onesaberIcon from "../assets/Icons/onesaber.svg";
 import lawlessIcon from "../assets/Icons/lawless.svg";

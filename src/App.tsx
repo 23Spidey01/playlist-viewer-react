@@ -16,13 +16,13 @@ interface PoolDetailed {
   banner_image?: string;
 }
 
-// Card-Ansicht für alle Pools mit Suche und Sortierung
+// Card view for all pools with search and sorting
 const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"popularity" | "name" | "players">("popularity");
 
-  // Pools filtern und sortieren
+  // Filter and sort pools
   const filtered = pools
     .filter(
       (pool) =>
@@ -38,11 +38,11 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
 
   return (
     <div>
-      {/* Suchfeld und Sortierung */}
+      {/* Search and Sort */}
       <div className="flex flex-col sm:flex-row gap-4 mb-8 items-center">
         <input
           type="text"
-          placeholder="Pool suchen..."
+          placeholder="Search pools..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="px-3 py-2 rounded bg-neutral-800 border border-neutral-700 text-neutral-100 w-full sm:w-72"
@@ -52,9 +52,9 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
           onChange={(e) => setSort(e.target.value as any)}
           className="px-3 py-2 rounded bg-neutral-800 border border-neutral-700 text-neutral-100"
         >
-          <option value="popularity">Sortieren nach: Popularität</option>
-          <option value="name">Sortieren nach: Name</option>
-          <option value="players">Sortieren nach: Spielerzahl</option>
+          <option value="popularity">Sort by: Popularity</option>
+          <option value="name">Sort by: Name</option>
+          <option value="players">Sort by: Players</option>
         </select>
       </div>
       {/* Pool-Cards */}
@@ -74,13 +74,13 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
             <div className="text-neutral-400 text-base mb-2 text-center">{pool.short_description}</div>
             <div className="flex gap-4 mt-2 text-sm text-neutral-500">
               <span>
-                Autor: <span className="font-semibold text-neutral-300">{pool.author}</span>
+                Author: <span className="font-semibold text-neutral-300">{pool.author}</span>
               </span>
               <span>
-                Spieler: <span className="font-semibold text-neutral-300">{pool.player_count}</span>
+                Players: <span className="font-semibold text-neutral-300">{pool.player_count}</span>
               </span>
               <span>
-                Popularität: <span className="font-semibold text-neutral-300">{pool.popularity}</span>
+                Popularity: <span className="font-semibold text-neutral-300">{pool.popularity}</span>
               </span>
             </div>
             {pool.banner_image && (
@@ -94,17 +94,17 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
         ))}
       </div>
       {filtered.length === 0 && (
-        <div className="text-orange-400 text-center mt-8">Kein Pool gefunden.</div>
+        <div className="text-orange-400 text-center mt-8">No pools found.</div>
       )}
     </div>
   );
 };
 
-// Wrapper für SongList, holt Pool-ID aus URL
+// Wrapper for SongList, gets Pool ID from URL
 const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   const { id } = useParams<{ id: string }>();
   const pool = pools.find((p) => p.id === id);
-  if (!id || !pool) return <div className="text-orange-400">Pool nicht gefunden.</div>;
+  if (!id || !pool) return <div className="text-orange-400">Pool not found.</div>;
   return (
     <div>
       <div className="flex flex-col md:flex-row items-center gap-6 bg-neutral-800 border border-neutral-700 rounded-xl p-6 shadow w-full max-w-2xl mx-auto mb-8">
@@ -118,13 +118,13 @@ const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
           <div className="text-neutral-400 text-base">{pool.short_description}</div>
           <div className="flex gap-4 mt-2 text-sm text-neutral-500">
             <span>
-              Autor: <span className="font-semibold text-neutral-300">{pool.author}</span>
+              Author: <span className="font-semibold text-neutral-300">{pool.author}</span>
             </span>
             <span>
-              Spieler: <span className="font-semibold text-neutral-300">{pool.player_count}</span>
+              Players: <span className="font-semibold text-neutral-300">{pool.player_count}</span>
             </span>
             <span>
-              Popularität: <span className="font-semibold text-neutral-300">{pool.popularity}</span>
+              Popularity: <span className="font-semibold text-neutral-300">{pool.popularity}</span>
             </span>
           </div>
           {pool.banner_image && (
@@ -144,7 +144,7 @@ const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
 const App: React.FC = () => {
   const [pools, setPools] = useState<PoolDetailed[]>([]);
 
-  // Pools beim Laden holen
+  // Fetch pools while loading
   useEffect(() => {
     fetch("http://localhost:3001/proxy/map_pools_detailed")
       .then((res) => res.json())

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 const parseBeatSaverId = (urlOrId: string) => {
-  // Extrahiere die Map-ID aus einem BeatSaver-Link oder gib sie direkt zurück
+  // Extract map ID from a BeatSaver link or return it directly
   const match = urlOrId.match(/([0-9a-fA-F]{1,8})$/);
   return match ? match[1] : urlOrId.trim();
 };
@@ -18,7 +18,7 @@ const RankNewMaps: React.FC = () => {
     Record<string, Record<string, { method: "automatic" | "manual"; rating?: string }>>
   >({});
 
-  // Lade Songs von BeatSaver
+  // Load songs from BeatSaver
   const handleLoad = async () => {
     setLoading(true);
     const ids = input
@@ -36,10 +36,10 @@ const RankNewMaps: React.FC = () => {
     setLoading(false);
   };
 
-  // Ranke alle ausgewählten Difficulties
+  // Rank all selected difficulties
   const handleBatchRank = async () => {
-    const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
-    if (!key) return alert("Kein API-Key eingegeben.");
+    const key = prompt("Please enter the API key for this pool:");
+    if (!key) return alert("No API key entered.");
     let count = 0;
     for (const song of songs) {
       const hash = song.versions?.[0]?.hash?.toUpperCase();
@@ -47,14 +47,14 @@ const RankNewMaps: React.FC = () => {
       for (const diff of diffs) {
         const [characteristic, difficulty] = diff.split("|");
         const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-        // 1. Ranken
+        // 1. Rank
         const bodyRank = { key, pool: poolId, song: formattedId };
         await fetch("http://localhost:3001/proxy/rank", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(bodyRank),
         });
-        // 2. Star Rating setzen
+        // 2. Set star rating
         const options = diffOptions[song.id]?.[diff] || { method: "automatic" };
         if (options.method === "automatic") {
           await fetch("http://localhost:3001/proxy/set_automatic", {
@@ -65,7 +65,7 @@ const RankNewMaps: React.FC = () => {
         } else {
           const ratingNum = parseFloat(options.rating?.replace(",", ".") || "");
           if (isNaN(ratingNum) || ratingNum < 0) {
-            alert(`Ungültiges Star Rating für ${song.metadata.songName} ${diff}. Übersprungen.`);
+            alert(`Invalid star rating for ${song.metadata.songName} ${diff}. Skipped.`);
             continue;
           }
           await fetch("http://localhost:3001/proxy/set_manual", {
@@ -77,13 +77,13 @@ const RankNewMaps: React.FC = () => {
         count++;
       }
     }
-    // CR recalculaten
+    // CR recalculate
     await fetch("http://localhost:3001/proxy/recalculate_cr", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, pool: poolId }),
     });
-    alert(`${count} Difficulties wurden gerankt und CR wurde neu berechnet!`);
+    alert(`${count} Difficulties ranked and CR recalculated!`);
     navigate(`/pool/${poolId}`);
   };
 
@@ -92,7 +92,7 @@ const RankNewMaps: React.FC = () => {
       <h2 className="text-2xl font-bold text-cyan-300 mb-4">Rank new maps</h2>
       <textarea
         className="w-full h-32 p-2 rounded bg-neutral-900 border border-neutral-700 text-neutral-100 mb-2"
-        placeholder="BeatSaver Links oder IDs, eine pro Zeile"
+        placeholder="BeatSaver Links or IDs, one per line"
         value={input}
         onChange={(e) => setInput(e.target.value)}
         disabled={loading}
@@ -102,18 +102,18 @@ const RankNewMaps: React.FC = () => {
         onClick={handleLoad}
         disabled={loading || !input.trim()}
       >
-        {loading ? "Lade..." : "Songs laden"}
+        {loading ? "Loading..." : "Load Songs"}
       </button>
       <button
         className="px-4 py-2 bg-neutral-700 text-white rounded hover:bg-neutral-800 font-semibold"
         onClick={() => navigate(-1)}
       >
-        Zurück
+        Back
       </button>
-      {/* Song-Auswahl */}
+      {/* Song selection */}
       {songs.length > 0 && (
         <div className="mt-6">
-          <h3 className="text-lg font-bold mb-2">Wähle Difficulties zum Ranken:</h3>
+          <h3 className="text-lg font-bold mb-2">Select Difficulties to Rank:</h3>
           {songs.map((song) => (
             <div key={song.id} className="mb-4 p-3 bg-neutral-800 rounded">
               <div className="flex items-center gap-4">
@@ -148,7 +148,7 @@ const RankNewMaps: React.FC = () => {
                                 : [...prev, diffKey],
                             };
                           });
-                          // Wenn ausgewählt, Standard-Option setzen
+                          // If selected, set default option
                           setDiffOptions((old) => ({
                             ...old,
                             [song.id]: {
@@ -209,7 +209,7 @@ const RankNewMaps: React.FC = () => {
             className="mt-4 px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 font-semibold"
             onClick={handleBatchRank}
           >
-            Ausgewählte Difficulties ranken & CR neu berechnen
+            Rank Selected Difficulties & Recalculate CR
           </button>
         </div>
       )}

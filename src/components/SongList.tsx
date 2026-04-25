@@ -10,32 +10,32 @@ interface SongListProps {
 }
 
 const SongList: React.FC<SongListProps> = ({ poolId }) => {
-  // State für alle Songs aus Hitbloq (ranked_list_detailed)
+  // State for all songs from Hitbloq (ranked_list_detailed)
   const [songs, setSongs] = useState<DetailedSong[]>([]);
-  // State für alle Songs, die von BeatSaver gefunden wurden
+  // State for all songs found from BeatSaver
   const [bsSongs, setBsSongs] = useState<BSSongInfo[]>([]);
-  // Ladeanzeige
+  // Loading indicator
   const [loading, setLoading] = useState(false);
-  // Map für Star-Ratings: hash -> characteristic -> difficulty -> stars
+  // Map for star ratings: hash -> characteristic -> difficulty -> stars
   const [starRatingMap, setStarRatingMap] = useState<
     Record<string, Record<string, Record<string, number>>>
   >({});
-  // Zeigt an, ob die Liste der fehlenden Songs angezeigt wird
+  // Indicates whether the list of missing songs is displayed
   const [showMissing, setShowMissing] = useState(false);
   const { cache, setCache } = useSongPoolCache();
 
-  // State für ausgewählte Schwierigkeitsgrade
+  // State for selected difficulties
   const [selectedDiffs, setSelectedDiffs] = useState<{
     [hash: string]: { [characteristic: string]: string[] };
   }>({});
 
-  // State für Bearbeitungsmodus
+  // State for edit mode
   const [editMode, setEditMode] = useState(false);
 
-  // Lädt alle Songs aus dem gewählten Pool (Hitbloq API)
+  // Load all songs from the selected pool (Hitbloq API)
   useEffect(() => {
     if (!poolId) return;
-    // Prüfe, ob Songs schon im Cache sind
+    // Check if songs are already in cache
     if (cache[poolId]?.songs?.length) {
       setSongs(cache[poolId].songs);
       setBsSongs(cache[poolId].bsSongs);
@@ -55,12 +55,12 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
         const data = await res.json();
         if (!Array.isArray(data) || data.length === 0) break;
         allSongs = allSongs.concat(data);
-        if (data.length < 30) break; // Letzte Seite erreicht
+        if (data.length < 30) break; // Last page reached
         page++;
       }
       setSongs(allSongs);
       
-      // BeatSaver-Songs laden und dann alles in den Cache schreiben!
+      // Load BeatSaver songs and write everything to cache!
       const hashes = Array.from(
         new Set(
           allSongs.map((song) => song.song_id.split("_")[0].toLowerCase())
@@ -84,7 +84,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     fetchAllSongs();
   }, [poolId, cache, setCache]);
 
-  // Holt BeatSaver-Infos für alle Hashes (in Chunks, um Rate-Limits zu vermeiden)
+  // Fetch BeatSaver info for all hashes (in chunks to avoid rate limits)
   const fetchBeatSaverSongs = async (hashes: string[]) => {
     const CHUNK_SIZE = 50;
     const DELAY_MS = 50;
@@ -101,7 +101,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     return results;
   };
 
-  // Baut eine Map: hash -> characteristic -> difficulty -> starRating
+  // Build a map: hash -> characteristic -> difficulty -> starRating
   const buildStarRatingMap = (songs: DetailedSong[]) => {
     const map: Record<string, Record<string, Record<string, number>>> = {};
     songs.forEach((song) => {
@@ -121,20 +121,20 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     return map;
   };
 
-  // Hashes aus Hitbloq-Songs (uppercase)
+  // Hashes from Hitbloq songs (uppercase)
   const hitbloqHashes = songs.map((song) =>
     song.song_id.split("_")[0].toUpperCase()
   );
-  // Hashes aus BeatSaver-Songs (uppercase)
+  // Hashes from BeatSaver songs (uppercase)
   const beatsaverHashes = bsSongs
     .map((song) => song.versions?.[0]?.hash?.toUpperCase())
     .filter(Boolean);
-  // Hashes, die in Hitbloq aber nicht in BeatSaver sind
+  // Hashes that are in Hitbloq but not in BeatSaver
   const missingHashes = Array.from(new Set(hitbloqHashes)).filter(
     (hash) => !beatsaverHashes.includes(hash)
   );
 
-  // Schwierigkeitsgrad-Auswahl umschalten
+  // Toggle difficulty selection
   const toggleDiffSelection = (
     hash: string,
     characteristic: string,
@@ -175,29 +175,29 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
 
   return (
     <div>
-      {/* Ladeanzeige */}
-      {loading && <p className="text-cyan-400">Pool wird geladen...</p>}
-      {/* Statistik und Aktionen */}
+      {/* Loading indicator */}
+      {loading && <p className="text-cyan-400">Loading pool...</p>}
+      {/* Statistics and actions */}
       {!loading && (
         <div className="mb-6 text-neutral-300 text-sm flex flex-wrap gap-4 items-center">
           <span>
-            Ranked Difficulties im Pool: <b>{songs.length}</b>
+            Ranked Difficulties in Pool: <b>{songs.length}</b>
           </span>
           <span>
-            Songs gefunden bei BeatSaver: <b>{bsSongs.length}</b>
+            Songs found on BeatSaver: <b>{bsSongs.length}</b>
           </span>
           <span className="flex items-center gap-2 flex-wrap w-full">
-            Nicht gefundene Songs: <b>{missingHashes.length}</b>
-            {/* Button zum Auf-/Zuklappen der fehlenden Hash-Liste */}
+            Songs not found: <b>{missingHashes.length}</b>
+            {/* Button to collapse/expand missing hash list */}
             {missingHashes.length > 0 && (
               <button
                 className="px-2 py-1 bg-neutral-700 text-neutral-200 rounded hover:bg-neutral-600 text-xs"
                 onClick={() => setShowMissing((v) => !v)}
               >
-                {showMissing ? "Liste verbergen" : "Liste anzeigen"}
+                {showMissing ? "Hide List" : "Show List"}
               </button>
             )}
-            {/* Button zum Kopieren der fehlenden Hashes */}
+            {/* Button to copy missing hashes */}
             {missingHashes.length > 0 && (
               <button
                 className="px-2 py-1 bg-neutral-700 text-neutral-200 rounded hover:bg-neutral-600 text-xs"
@@ -205,7 +205,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                   navigator.clipboard.writeText(missingHashes.join("\n"))
                 }
               >
-                Hash-Liste kopieren
+                Copy Hash List
               </button>
             )}
             <div className="flex w-full mt-2">
@@ -216,16 +216,16 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                   (window.location.href = `/pool/${poolId}/rank-new`)
                 }
               >
-                Rank new maps
+                Rank New Maps
               </button>
               <button
                 className="px-6 py-3 bg-cyan-700 text-neutral-100 rounded-lg hover:bg-cyan-800 text-base font-bold shadow transition-all"
                 style={{ minWidth: "180px" }}
                 onClick={async () => {
                   const key = prompt(
-                    "Bitte gib den API-Key für diesen Pool ein:"
+                    "Please enter the API key for this pool:"
                   );
-                  if (!key) return alert("Kein API-Key eingegeben.");
+                  if (!key) return alert("No API key entered.");
                   setLoading(true);
                   const res = await fetch(
                     "http://localhost:3001/proxy/recalculate_cr",
@@ -239,14 +239,14 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                   const result = await res.json();
                   alert(
                     result.status === "success"
-                      ? "CR wurde neu berechnet!"
-                      : "Fehler: " + (result.error || result.status)
+                      ? "CR recalculated!"
+                      : "Error: " + (result.error || result.status)
                   );
                 }}
               >
-                CR neu berechnen
+                Recalculate CR
               </button>
-              {/* Aktionen für ausgewählte Schwierigkeitsgrade */}
+              {/* Actions for selected difficulties */}
               {Object.keys(selectedDiffs).some((hash) =>
                 Object.values(selectedDiffs[hash] || {}).some(
                   (arr) => arr.length > 0
@@ -258,7 +258,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                     disabled={!allSelectedAreRanked}
                     onClick={async () => {
                       if (!allSelectedAreRanked) return;
-                      const key = prompt("API-Key?");
+                      const key = prompt("API Key?");
                       if (!key) return;
                       let count = 0;
                       for (const hash in selectedDiffs) {
@@ -274,22 +274,22 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                           }
                         }
                       }
-                      // CR recalculaten
+                      // CR recalculate
                       await fetch("http://localhost:3001/proxy/recalculate_cr", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ key, pool: poolId }),
                       });
-                      alert(`${count} Difficulties wurden unranked!`);
+                      alert(`${count} Difficulties unranked!`);
                       window.location.reload();
                     }}
                   >
-                    Alle ausgewählten unranken
+                    Unrank All Selected
                   </button>
                   <button
                     className="px-4 py-2 bg-yellow-700 text-white rounded hover:bg-yellow-800 font-semibold"
                     onClick={async () => {
-                      // Prüfe, ob es ungerankte Diffs in der Auswahl gibt
+                        // Check if there are unranked diffs in the selection
                       const unrankedDiffs: { hash: string; characteristic: string; difficulty: string }[] = [];
                       for (const hash in selectedDiffs) {
                         for (const characteristic in selectedDiffs[hash]) {
@@ -303,11 +303,11 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
 
                       if (unrankedDiffs.length > 0) {
                         const proceed = window.confirm(
-                          "In deiner Auswahl sind Difficulties, die noch nicht gerankt sind.\n" +
-                          "Sollen diese zuerst gerankt werden und danach das Star Rating gesetzt werden?"
+                          "Your selection contains difficulties that are not ranked yet.\n" +
+                          "Should these be ranked first and then the star rating be set?"
                         );
                         if (!proceed) return;
-                        const key = prompt("API-Key?");
+                        const key = prompt("API Key?");
                         if (!key) return;
 
                         // Zuerst alle ungerankten Diffs ranken
@@ -325,21 +325,21 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ key, pool: poolId }),
                         });
-                        alert(`${unrankedDiffs.length} Difficulties wurden zuerst gerankt! Jetzt wird das Star Rating gesetzt.`);
-                        // Jetzt wie gewohnt mit dem Star Rating fortfahren (siehe unten)
+                        alert(`${unrankedDiffs.length} Difficulties ranked first! Now the star rating will be set.`);
+                        // Now continue with star rating as usual (see below)
                       }
-                      const key = prompt("API-Key?");
+                      const key = prompt("API Key?");
                       if (!key) return;
                       const isAutomatic = window.confirm(
-                        "Star Rating automatisch berechnen?\n\nOK = Automatisch\nAbbrechen = Manuell"
+                        "Calculate star rating automatically?\n\nOK = Automatic\nCancel = Manual"
                       );
                       let manualRating: number | undefined = undefined;
                       if (!isAutomatic) {
-                        let rating = prompt("Welches Star Rating für alle setzen? (z.B. 8.5)");
-                        if (!rating) return alert("Kein Star Rating eingegeben.");
+                        let rating = prompt("What star rating to set for all? (e.g. 8.5)");
+                        if (!rating) return alert("No star rating entered.");
                         rating = rating.replace(",", ".");
                         manualRating = parseFloat(rating);
-                        if (isNaN(manualRating) || manualRating < 0) return alert("Ungültiges Star Rating.");
+                        if (isNaN(manualRating) || manualRating < 0) return alert("Invalid star rating.");
                       }
                       let count = 0;
                       for (const hash in selectedDiffs) {
@@ -363,30 +363,30 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                           }
                         }
                       }
-                      // CR recalculaten
+                      // CR recalculate
                       await fetch("http://localhost:3001/proxy/recalculate_cr", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ key, pool: poolId }),
                       });
-                      alert(`${count} Difficulties wurden geändert und CR wurde neu berechnet!`);
+                      alert(`${count} Difficulties changed and CR recalculated!`);
                       window.location.reload();
                     }}
                   >
-                    Star Rating für Auswahl setzen
+                    Set Star Rating for Selection
                   </button>
                   <button
                     className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 font-semibold disabled:opacity-50"
                     disabled={!allSelectedAreUnranked}
                     onClick={async () => {
                       if (!allSelectedAreUnranked) return;
-                      const key = prompt("API-Key?");
+                      const key = prompt("API Key?");
                       if (!key) return;
                       let count = 0;
                       for (const hash in selectedDiffs) {
                         for (const characteristic in selectedDiffs[hash]) {
                           for (const difficulty of selectedDiffs[hash][characteristic]) {
-                            // Nur wenn noch nicht gerankt:
+                            // Only if not ranked yet:
                             const isRanked =
                               starRatingMap[hash]?.[characteristic]?.[difficulty] !== undefined;
                             if (isRanked) continue;
@@ -400,17 +400,17 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                           }
                         }
                       }
-                      // CR recalculaten
+                      // CR recalculate
                       await fetch("http://localhost:3001/proxy/recalculate_cr", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ key, pool: poolId }),
                       });
-                      alert(`${count} Difficulties wurden gerankt und CR wurde neu berechnet!`);
+                      alert(`${count} Difficulties ranked and CR recalculated!`);
                       window.location.reload();
                     }}
                   >
-                    Alle ausgewählten ranken
+                    Rank All Selected
                   </button>
                 </div>
               )}
@@ -418,11 +418,11 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
           </span>
         </div>
       )}
-      {/* Fehlende Songs auflisten (aufklappbar) */}
+      {/* List missing songs (collapsible) */}
       {!loading && missingHashes.length > 0 && showMissing && (
         <div className="mt-2 text-orange-400 text-xs">
           <ul className="list-disc pl-6">
-            {/* Für jeden fehlenden Hash alle zugehörigen Songs mit Difficulty/Characteristic anzeigen */}
+            {/* For each missing hash, display all associated songs with difficulty/characteristic */}
             {missingHashes.map((hash) => {
               const missingSongs = songs.filter((song) =>
                 song.song_id.startsWith(hash)
@@ -433,7 +433,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                 const charShort = parts[2];
                 const difficulty = diffMap[diffShort] || diffShort;
                 const characteristic = charMap[charShort] || charShort;
-                // Song-ID im gewünschten Format für Unrank-API
+                // Song ID in desired format for unrank API
                 const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
                 return (
                   <li key={song.song_id}>
@@ -443,15 +443,15 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
               });
             })}
           </ul>
-          {/* Button: Alle fehlenden Songs als unranked an die API senden */}
+          {/* Button: Send all missing songs as unranked to the API */}
           <button
             className="mt-4 px-3 py-2 bg-red-700 text-white rounded hover:bg-red-800 font-semibold"
             onClick={async () => {
-              const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
-              if (!key) return alert("Kein API-Key eingegeben.");
+              const key = prompt("Please enter the API key for this pool:");
+              if (!key) return alert("No API key entered.");
               if (
                 !confirm(
-                  "Bist du sicher, dass du alle fehlenden Songs unranked senden möchtest?"
+                  "Are you sure you want to send all missing songs as unranked?"
                 )
               )
                 return;
@@ -483,14 +483,14 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                 }
               }
               setLoading(false);
-              alert(`${count} Songs wurden als unranked gesendet!`);
+              alert(`${count} Songs sent as unranked!`);
             }}
           >
-            Alle fehlenden Songs unranked senden
+            Send All Missing Songs as Unranked
           </button>
         </div>
       )}
-      {/* Bearbeiten-Button über der Songliste, rechtsbündig */}
+      {/* Edit button above song list, right-aligned */}
       <div className="flex w-full justify-end mb-4">
         <button
           className={`px-4 py-2 rounded font-semibold transition ${
@@ -500,11 +500,11 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
           }`}
           onClick={() => setEditMode((v) => !v)}
         >
-          {editMode ? "Bearbeiten beenden" : "Bearbeiten"}
+          {editMode ? "Exit Edit Mode" : "Edit"}
         </button>
       </div>
 
-      {/* BeatSaver SongCards anzeigen */}
+      {/* Display BeatSaver SongCards */}
       {!loading && bsSongs.length > 0 && poolId === "funny_haha_pauls" && (
         renderFunnyHahaPaulsSongs(
           bsSongs,
@@ -532,9 +532,9 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
           ))}
         </div>
       )}
-      {/* Hinweis, falls keine Songs gefunden wurden */}
+      {/* Note if no songs were found */}
       {!loading && bsSongs.length === 0 && (
-        <p className="text-orange-400">Keine Songs gefunden.</p>
+        <p className="text-orange-400">No songs found.</p>
       )}
     </div>
   );

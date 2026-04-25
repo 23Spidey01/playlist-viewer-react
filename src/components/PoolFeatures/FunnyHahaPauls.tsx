@@ -9,7 +9,7 @@ export function renderFunnyHahaPaulsSongs(
   toggleDiffSelection: any,
   editMode: boolean
 ) {
-  // Songs mit Star Rating 20.69 als "neu"
+  // Mark songs with 20.69 stars as "new" and separate them from the rest
   const newSongs = bsSongs.filter((song) => {
     const hash = song.versions?.[0]?.hash?.toUpperCase();
     const starMap = starRatingMap[hash] || {};
@@ -30,14 +30,14 @@ export function renderFunnyHahaPaulsSongs(
             <svg className="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M6.343 17.657l-1.414 1.414M17.657 17.657l-1.414-1.414M6.343 6.343L4.929 4.929" />
             </svg>
-            <h3 className="text-cyan-400 text-2xl font-extrabold tracking-wide drop-shadow">Neu im Pool</h3>
+            <h3 className="text-cyan-400 text-2xl font-extrabold tracking-wide drop-shadow">New in Pool</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {newSongs.map((song) => (
               <div className="relative group" key={song.versions?.[0]?.hash || song.id}>
-                {/* Ribbon-Badge oben rechts */}
+                {/* Ribbon-Badge top right */}
                 <span className="absolute top-0 right-0 z-10 bg-cyan-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl shadow-lg group-hover:scale-110 transition-transform select-none">
-                  NEU
+                  NEW
                 </span>
                 <SongCard
                   song={song}
@@ -48,7 +48,7 @@ export function renderFunnyHahaPaulsSongs(
                     toggleDiffSelection(song.versions?.[0]?.hash?.toUpperCase(), characteristic, difficulty)
                   }
                   editMode={editMode}
-                  // isNew bleibt, falls du im SongCard noch ein Badge möchtest
+                  // isNew stays true for the SongCard, so it can show a "new" badge on the card itself if needed
                 />
               </div>
             ))}

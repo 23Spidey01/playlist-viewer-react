@@ -3,7 +3,7 @@ import { useParams, Link, useLocation } from "react-router-dom";
 import type { BSSongInfo, BSDifficulty } from "./types";
 import { diffColors, characteristicLabels, characteristicIcons } from "./types";
 
-// Hilfsfunktion: Sekunden in Minuten:Sekunden umwandeln
+// Helper function: Convert seconds to minutes:seconds
 function formatDuration(seconds: number) {
   const min = Math.floor(seconds / 60);
   const sec = Math.round(seconds % 60);
@@ -11,19 +11,19 @@ function formatDuration(seconds: number) {
 }
 
 const SongInfo: React.FC = () => {
-  // Song-ID aus der URL holen
+  // Song ID from URL
   const { id } = useParams<{ id: string }>();
-  // Router-State für Star-Ratings (wird von SongCard übergeben)
+  // Router state for star ratings (passed by SongCard)
   const location = useLocation();
   const poolId = location.state?.poolId;
   const starRatings: Record<string, Record<string, number>> | undefined = location.state?.starRatings;
 
-  // State für die Songdaten von BeatSaver
+  // State for song data from BeatSaver
   const [song, setSong] = useState<BSSongInfo | null>(null);
-  // State für bereits gerankte Difficulties (um Button zu deaktivieren)
+  // State for already ranked difficulties (to disable button)
   const [ranking, setRanking] = useState<{ [key: string]: boolean }>({});
 
-  // Songdaten von BeatSaver laden, wenn ID sich ändert
+  // Load song data from BeatSaver when ID changes
   useEffect(() => {
     if (!id) return;
     fetch(`https://api.beatsaver.com/maps/id/${id}`)
@@ -31,10 +31,10 @@ const SongInfo: React.FC = () => {
       .then(setSong);
   }, [id]);
 
-  // Ladeanzeige, solange Songdaten noch nicht da sind
-  if (!song) return <div className="text-cyan-300">Lade Songdaten...</div>;
+  // Loading display while song data is being fetched
+  if (!song) return <div className="text-cyan-300">Loading song data...</div>;
 
-  // Difficulties nach characteristic gruppieren (z.B. Standard, Lawless, ...)
+  // Difficulties grouped by characteristic (e.g. Standard, Lawless, ...)
   const difficulties: BSDifficulty[] = song.versions?.[0]?.diffs || [];
   const grouped: Record<string, BSDifficulty[]> = {};
   difficulties.forEach((diff) => {
@@ -44,37 +44,37 @@ const SongInfo: React.FC = () => {
 
   return (
     <div className="max-w-8xl mx-auto p-6 bg-neutral-900 rounded-xl shadow text-neutral-100">
-      {/* Zurück-Link */}
+      {/* Back link */}
       <Link
         to={poolId ? `/pool/${poolId}` : "/"}
         className="text-cyan-400 hover:underline mb-4 inline-block"
       >
-        ← Zurück
+        ← Back
       </Link>
       {/* Song-Cover und Metadaten */}
       <div className="flex gap-6 mb-6">
         <img src={song.versions?.[0]?.coverURL} alt={song.metadata.songName} className="w-40 h-40 rounded-lg border border-neutral-700" />
         <div>
           <h2 className="text-4xl font-bold text-cyan-300 mb-2">{song.metadata.songName}</h2>
-          <div className="text-neutral-400 mb-1 text-lg">von {song.metadata.songAuthorName}</div>
+          <div className="text-neutral-400 mb-1 text-lg">by {song.metadata.songAuthorName}</div>
           <div className="text-neutral-500 text-base mb-2">Uploader: {song.uploader.name}</div>
           <div className="text-neutral-400 text-base">{song.description}</div>
         </div>
       </div>
-      {/* Song-Statistiken */}
+      {/* Song Statistics */}
       <div className="mt-4 flex flex-wrap gap-8 text-lg">
         <div>BPM: <b>{song.metadata.bpm}</b></div>
-        <div>Dauer: <b>{formatDuration(song.metadata.duration)}</b></div>
+        <div>Duration: <b>{formatDuration(song.metadata.duration)}</b></div>
         <div>Upvotes: <b>{song.stats.upvotes}</b></div>
         <div>Downvotes: <b>{song.stats.downvotes}</b></div>
       </div>
-      {/* Difficulties groß und mit Star-Rating und Detailinfos */}
+      {/* Difficulties large with star rating and detail info */}
       <div className="mt-8">
         <h3 className="text-2xl font-bold text-cyan-200 mb-4">Difficulties</h3>
         <div className="flex flex-col gap-4">
           {Object.entries(grouped).map(([characteristic, diffs]) => (
             <div key={characteristic} className="flex items-center gap-4">
-              {/* Icon oder Label für die characteristic */}
+              {/* Icon or label for the characteristic */}
               {characteristicIcons[characteristic] ? (
                 <img
                   src={characteristicIcons[characteristic]}
@@ -86,7 +86,7 @@ const SongInfo: React.FC = () => {
                   {characteristicLabels[characteristic] || characteristic}
                 </span>
               )}
-              {/* Alle Difficulties dieser characteristic */}
+              {/* All difficulties of this characteristic */}
               <div className="flex flex-wrap gap-3">
                 {diffs.map((diff) => {
                   const star = starRatings?.[characteristic]?.[diff.difficulty];
@@ -95,18 +95,18 @@ const SongInfo: React.FC = () => {
                   const canRank = (star === undefined) && poolId && songHash;
                   const canUnrank = (star !== undefined) && poolId && songHash;
 
-                  // Handler für den Rank-Button
+                  // Handler for the rank button
                   const handleRank = async () => {
                     if (!poolId || !songHash) return;
                     setRanking((r) => ({ ...r, [diffKey]: true }));
-                    const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                    const key = prompt("Please enter the API key for this pool:");
                     if (!key) {
                       setRanking((r) => ({ ...r, [diffKey]: false }));
-                      return alert("Kein API-Key eingegeben.");
+                      return alert("No API key entered.");
                     }
                     const formattedId = `${songHash}|_${diff.difficulty}_Solo${characteristic}`;
 
-                    // Zuerst Difficulty ranken (wie bisher)
+                    // First rank difficulty (as before)
                     const bodyRank = { key, pool: poolId, song: formattedId };
                     const resRank = await fetch("http://localhost:3001/proxy/rank", {
                       method: "POST",
@@ -116,14 +116,14 @@ const SongInfo: React.FC = () => {
                     const resultRank = await resRank.json();
 
                     if (resultRank.status === "success") {
-                      // Jetzt nach Automatic/Manual fragen
+                      // Now ask for Automatic/Manual
                       const isAutomatic = window.confirm(
-                        "Star Rating automatisch berechnen?\n\nOK = Automatisch\nAbbrechen = Manuell"
+                        "Calculate star rating automatically?\n\nOK = Automatic\nCancel = Manual"
                       );
 
                       let resultSet;
                       if (isAutomatic) {
-                        // Automatisch
+                        // Automatic
                         const body = { key, pool: poolId, song: formattedId };
                         const res = await fetch("http://localhost:3001/proxy/set_automatic", {
                           method: "POST",
@@ -132,17 +132,17 @@ const SongInfo: React.FC = () => {
                         });
                         resultSet = await res.json();
                       } else {
-                        // Manuell
-                        let rating = prompt("Auf welches Star Rating soll gesetzt werden? (z.B. 8.5)");
+                        // Manual
+                        let rating = prompt("What star rating should be set? (e.g. 8.5)");
                         if (!rating) {
                           setRanking((r) => ({ ...r, [diffKey]: false }));
-                          return alert("Kein Star Rating eingegeben.");
+                          return alert("No star rating entered.");
                         }
                         rating = rating.replace(",", ".");
                         const ratingNum = parseFloat(rating);
                         if (isNaN(ratingNum) || ratingNum < 0) {
                           setRanking((r) => ({ ...r, [diffKey]: false }));
-                          return alert("Ungültiges Star Rating.");
+                          return alert("Invalid star rating.");
                         }
                         const body = { key, pool: poolId, song: formattedId, rating: ratingNum };
                         const res = await fetch("http://localhost:3001/proxy/set_manual", {
@@ -154,8 +154,8 @@ const SongInfo: React.FC = () => {
                       }
 
                       if (resultSet.status === "success") {
-                        alert("Difficulty wurde gerankt und das Star Rating gesetzt!");
-                        // CR RECALCULATE AUFRUFEN
+                        alert("Difficulty ranked and star rating set!");
+                        // RECALCULATE CR
                         await fetch("http://localhost:3001/proxy/recalculate_cr", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
@@ -163,22 +163,22 @@ const SongInfo: React.FC = () => {
                         });
                         window.location.reload();
                       } else {
-                        alert("Fehler beim Setzen des Star Ratings: " + (resultSet.error || resultSet.status));
+                        alert("Error setting star rating: " + (resultSet.error || resultSet.status));
                       }
                     } else {
-                      alert("Fehler beim Ranken: " + (resultRank.error || resultRank.status));
+                      alert("Error ranking: " + (resultRank.error || resultRank.status));
                     }
                     setRanking((r) => ({ ...r, [diffKey]: false }));
                   };
 
-                  // Handler für den Unrank-Button
+                  // Handler for unrank button
                   const handleUnrank = async () => {
                     if (!poolId || !songHash) return;
                     setRanking((r) => ({ ...r, [diffKey]: true }));
-                    const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                    const key = prompt("Please enter the API key for this pool:");
                     if (!key) {
                       setRanking((r) => ({ ...r, [diffKey]: false }));
-                      return alert("Kein API-Key eingegeben.");
+                      return alert("No API key entered.");
                     }
                     const formattedId = `${songHash}|_${diff.difficulty}_Solo${characteristic}`;
                     const body = { key, pool: poolId, song: formattedId };
@@ -189,8 +189,8 @@ const SongInfo: React.FC = () => {
                     });
                     const result = await res.json();
                     if (result.status === "success") {
-                      alert("Difficulty wurde unranked!");
-                      // CR RECALCULATE AUFRUFEN
+                      alert("Difficulty unranked!");
+                      // RECALCULATE CR
                       await fetch("http://localhost:3001/proxy/recalculate_cr", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -198,30 +198,30 @@ const SongInfo: React.FC = () => {
                       });
                       window.location.reload();
                     } else {
-                      alert("Fehler: " + (result.error || result.status));
+                      alert("Error: " + (result.error || result.status));
                     }
                     setRanking((r) => ({ ...r, [diffKey]: false }));
                   };
 
-                  // Handler für den Set Star Rating-Button
+                  // Handler for set star rating button
                   const handleSetStarRating = async () => {
                     if (!poolId || !songHash) return;
                     setRanking((r) => ({ ...r, [diffKey]: true }));
-                    const key = prompt("Bitte gib den API-Key für diesen Pool ein:");
+                    const key = prompt("Please enter the API key for this pool:");
                     if (!key) {
                       setRanking((r) => ({ ...r, [diffKey]: false }));
-                      return alert("Kein API-Key eingegeben.");
+                      return alert("No API key entered.");
                     }
                     const formattedId = `${songHash}|_${diff.difficulty}_Solo${characteristic}`;
 
-                    // Automatisch oder manuell?
+                    // Automatic or manual?
                     const isAutomatic = window.confirm(
-                      "Star Rating automatisch berechnen?\n\nOK = Automatisch\nAbbrechen = Manuell"
+                      "Calculate star rating automatically?\n\nOK = Automatic\nCancel = Manual"
                     );
 
                     let resultSet;
                     if (isAutomatic) {
-                      // Automatisch
+                      // Automatic
                       const body = { key, pool: poolId, song: formattedId };
                       const res = await fetch("http://localhost:3001/proxy/set_automatic", {
                         method: "POST",
@@ -230,17 +230,17 @@ const SongInfo: React.FC = () => {
                       });
                       resultSet = await res.json();
                     } else {
-                      // Manuell
-                      let rating = prompt("Auf welches Star Rating soll gesetzt werden? (z.B. 8.5)");
+                      // Manual
+                      let rating = prompt("What star rating should be set? (e.g. 8.5)");
                       if (!rating) {
                         setRanking((r) => ({ ...r, [diffKey]: false }));
-                        return alert("Kein Star Rating eingegeben.");
+                        return alert("No star rating entered.");
                       }
                       rating = rating.replace(",", ".");
                       const ratingNum = parseFloat(rating);
                       if (isNaN(ratingNum) || ratingNum < 0) {
                         setRanking((r) => ({ ...r, [diffKey]: false }));
-                        return alert("Ungültiges Star Rating.");
+                        return alert("Invalid star rating.");
                       }
                       const body = { key, pool: poolId, song: formattedId, rating: ratingNum };
                       const res = await fetch("http://localhost:3001/proxy/set_manual", {
