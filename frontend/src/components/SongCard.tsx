@@ -6,7 +6,7 @@ import { characteristicIcons, diffColors } from "./types";
 import beatsaverIcon from "../assets/Icons/beatsaver.png";
 import beatleaderIcon from "../assets/Icons/beatleader.svg";
 
-// Props für die SongCard: Songdaten und optionale Star-Ratings
+// Props for SongCard: song data and optional star ratings
 interface SongCardProps {
   song: BSSongInfo;
   starRatings: any;
@@ -40,7 +40,7 @@ const SongCard: React.FC<SongCardProps> = ({
 
   return (
     <div
-      // Card-Design, klickbar, auch per Tastatur (Enter)
+      // Card design, clickable, also with keyboard (Enter)
       className="border border-neutral-700 rounded-xl p-4 shadow bg-neutral-800 flex flex-col hover:shadow-lg transition-all duration-200 w-full cursor-pointer"
       onClick={() =>
         navigate(`/song/${song.id}`, { state: { starRatings, poolId } })
@@ -52,7 +52,7 @@ const SongCard: React.FC<SongCardProps> = ({
           navigate(`/song/${song.id}`, { state: { starRatings } });
       }}
     >
-      {/* Song-Cover und Metadaten */}
+      {/* Song cover and metadata */}
       <div className="flex gap-4 mb-3">
         {coverUrl && (
           <img
@@ -69,15 +69,15 @@ const SongCard: React.FC<SongCardProps> = ({
             {song.metadata.songAuthorName}
           </p>
           <p className="text-xs text-neutral-500 break-words whitespace-normal">
-            von {song.uploader.name}
+            by {song.uploader.name}
           </p>
         </div>
       </div>
-      {/* Difficulties nach characteristic gruppiert */}
+      {/* Difficulties grouped by characteristic */}
       <div className="flex flex-col gap-2 mb-2">
         {Object.entries(grouped).map(([characteristic, diffs]) => (
           <div key={characteristic} className="flex items-center gap-2">
-            {/* Icon oder Text für die characteristic */}
+            {/* Icon or text for the characteristic */}
             {characteristicIcons[characteristic] ? (
               <img
                 src={characteristicIcons[characteristic]}
@@ -119,7 +119,7 @@ const SongCard: React.FC<SongCardProps> = ({
                         }}
                         onClick={(e) => e.stopPropagation()}
                         className="w-3 h-3 accent-cyan-400 mr-1"
-                        title="Für Pool auswählen"
+                        title="Select for pool"
                       />
                     )}
                     {diff.difficulty}
@@ -145,9 +145,9 @@ const SongCard: React.FC<SongCardProps> = ({
           </div>
         ))}
       </div>
-      {/* Upload-Datum und externe Links */}
+      {/* Upload Date and External Links */}
       <div className="w-full flex justify-between items-center text-xs text-neutral-400 mt-auto">
-        <span>Hochgeladen: {uploadDate}</span>
+        <span>Uploaded: {uploadDate}</span>
         <div className="flex items-center gap-2">
           {/* BeatLeader-Link */}
           <a
@@ -155,7 +155,7 @@ const SongCard: React.FC<SongCardProps> = ({
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-cyan-400 hover:scale-110 transition-transform"
-            title="BeatLeader öffnen"
+            title="Open BeatLeader"
           >
             <img
               src={beatleaderIcon}
@@ -163,13 +163,13 @@ const SongCard: React.FC<SongCardProps> = ({
               className="w-6 h-6 inline-block"
             />
           </a>
-          {/* BeatSaver-Link */}
+          {/* BeatSaver link */}
           <a
             href={`https://beatsaver.com/maps/${song.id}`}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-orange-400 hover:scale-110 transition-transform"
-            title="BeatSaver öffnen"
+            title="Open BeatSaver"
           >
             <img
               src={beatsaverIcon}

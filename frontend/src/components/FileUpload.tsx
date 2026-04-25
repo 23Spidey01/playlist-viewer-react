@@ -10,7 +10,7 @@ const FileUpload: React.FC<{ onLoad?: (playlist: HBPlaylist) => void }> = ({ onL
     if (!file) return;
 
     if (!file.name.endsWith(".json") && !file.name.endsWith(".bplist")) {
-      setError("Bitte eine gültige Playlist-Datei (.json oder .bplist) auswählen.");
+      setError("Please select a valid playlist file (.json or .bplist).");
       return;
     }
 
@@ -21,7 +21,7 @@ const FileUpload: React.FC<{ onLoad?: (playlist: HBPlaylist) => void }> = ({ onL
         onLoad?.(playlist);
         setError(null);
       } catch {
-        setError("Fehler beim Laden der Datei.");
+        setError("Error loading file.");
       }
     };
 
@@ -35,7 +35,7 @@ const FileUpload: React.FC<{ onLoad?: (playlist: HBPlaylist) => void }> = ({ onL
   return (
     <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6 mb-8 flex flex-col items-center shadow">
       <label className="block mb-4 text-neutral-200 font-semibold text-lg">
-        Playlist-Datei auswählen
+        Select Playlist File
       </label>
       <input
         ref={inputRef}
@@ -50,7 +50,7 @@ const FileUpload: React.FC<{ onLoad?: (playlist: HBPlaylist) => void }> = ({ onL
         className="mt-4 bg-cyan-500 text-white px-4 py-2 rounded-lg shadow hover:bg-cyan-600 transition font-semibold cursor-pointer"
         onClick={handleButtonClick}
       >
-        Datei auswählen
+        Choose File
       </button>
     </div>
   );
