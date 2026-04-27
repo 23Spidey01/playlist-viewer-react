@@ -28,7 +28,8 @@ public class BeatMapController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public BeatMap createBeatMap(@RequestBody CreateBeatMapRequest request) {
-        BeatMap beatMap = new BeatMap(request.name());
+        BeatMap beatMap = new BeatMap();
+        beatMap.setName(request.name());
         return beatMapRepository.save(beatMap);
     }
 }

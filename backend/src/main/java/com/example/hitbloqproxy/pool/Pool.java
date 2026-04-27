@@ -1,4 +1,4 @@
-package com.example.hitbloqproxy.beatmap;
+package com.example.hitbloqproxy.pool;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -17,24 +17,20 @@ import lombok.Setter;
 @Entity
 @Getter
 @Setter
-public class BeatMap {
-
+public class Pool {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Setter(lombok.AccessLevel.NONE)
     private Long id;
 
-    private String hitbloqId;
-
+    // This is the Hitbloq ID of the pool
     private String name;
 
     @OneToMany(
-        mappedBy = "beatMap",
+        mappedBy = "pool",
         cascade = CascadeType.ALL,
         orphanRemoval = true
     )
     private Set<PoolBeatMapEntry> poolEntries = new HashSet<>();
-
-    public BeatMap() {
-    }
 }
