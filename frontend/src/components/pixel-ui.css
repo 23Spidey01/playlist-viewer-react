@@ -1,0 +1,622 @@
+/* ============================================================
+   pixel-ui.css
+
+   Pixel-art design system layered on top of Tailwind. The look is
+   built from three tricks, reused everywhere below:
+     - hard edges, no border-radius
+     - stacked box-shadows to fake a beveled/3D pixel-art border
+       (an inset light+dark pair for the bevel, plus 0-blur shadows
+       for the outline and the "floating" drop shadow)
+     - a fixed 4px grid unit for spacing/thickness
+
+   Section map (search for "== N." to jump around):
+     1. Design tokens
+     2. Base / typography
+     3. Page background
+     4. Buttons & tabs
+     5. Inputs & search
+     6. Badges & stat chips
+     7. Cards (generic + pool card + cover/thumb/banner)
+     8. Topbar
+     9. Section labels & icons
+     10. Pool header (banner + leaderboard)
+     11. Song card internals (diff block, footer, difficulty colors,
+         edit-mode selection)
+
+   Class names are shared across components (SongCard, PoolCard,
+   PoolHeader, App's TopBar/PoolOverview) — check usages before
+   renaming or removing anything here.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+
+/* == 1. Design tokens ========================================= */
+
+:root {
+  --px-outline:   #0a0a16; /* near-black used for borders/backgrounds */
+  --px-bg:        #1f2340; /* card/panel background */
+  --px-bg-light:  rgba(255,255,255,0.06); /* top-left bevel highlight */
+  --px-bg-dark:   rgba(0,0,0,0.35);       /* bottom-right bevel shadow */
+  --px-cyan:      #3ec9f0;
+  --px-cyan-dark: #1a6f96;
+  --px-gold:      #f3c542;
+  --px-gold-dark: #b8860f;
+  --px-unit: 4px; /* base grid unit most border/shadow widths derive from */
+}
+
+/* == 2. Base / typography ===================================== */
+
+/* Pixel display font, used sparingly for headings/labels — body text
+   stays on the default sans font for readability at small sizes. */
+.pixel-font {
+  font-family: "Press Start 2P", monospace;
+}
+
+/* == 3. Page background ======================================= */
+
+/* Subtle pixel dot pattern instead of a flat color. Apply to the
+   outermost app wrapper (see App.tsx: "pixel-bg"). */
+.pixel-bg {
+  background-color: var(--px-outline);
+  background-image: radial-gradient(rgba(255,255,255,0.045) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* == 4. Buttons & tabs ========================================= */
+
+/* Generic bevel button (e.g. "+ Rank New Maps"). */
+.pixel-btn {
+  display: inline-block;
+  background: var(--px-gold);
+  color: var(--px-outline);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px 16px;
+  cursor: pointer;
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.5),
+    inset -2px -2px 0 var(--px-gold-dark),
+    0 0 0 3px var(--px-outline),
+    0 5px 0 var(--px-outline);
+  transition: transform 60ms steps(1), box-shadow 60ms steps(1);
+}
+
+.pixel-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* "Pressed" state: button sinks into its own drop shadow. */
+.pixel-btn:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.35),
+    inset -2px -2px 0 var(--px-gold-dark),
+    0 0 0 3px var(--px-outline),
+    0 2px 0 var(--px-outline);
+}
+
+/* Secondary variant, same shape, cyan instead of gold
+   (e.g. "Recalculate CR"). */
+.pixel-btn.secondary {
+  background: var(--px-cyan-dark);
+  color: #eafcff;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.25),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.35),
+    0 0 0 3px var(--px-outline),
+    0 5px 0 var(--px-outline);
+}
+
+/* Combine with .pixel-btn when the button has a leading icon —
+   needs flex instead of inline-block to align icon + label. */
+.pixel-btn.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Icon-only link button (BeatLeader/BeatSaver icons on the song card
+   footer): replaces a hover:scale utility with a stepped pixel move. */
+.pixel-icon-btn {
+  display: inline-flex;
+  padding: 3px;
+  transition: transform 60ms steps(1);
+}
+
+.pixel-icon-btn:hover {
+  transform: translate(-2px, -2px);
+}
+
+.pixel-icon-btn:active {
+  transform: translate(1px, 1px);
+}
+
+.pixel-icon-btn img {
+  image-rendering: pixelated;
+}
+
+/* Sort tabs in the topbar: replace the native <select>. */
+.pixel-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.pixel-tab {
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  padding: 9px 12px;
+  background: var(--px-outline);
+  color: #6a7690;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 3px var(--px-outline);
+  transition: background 60ms steps(1), color 60ms steps(1);
+}
+
+.pixel-tab:hover {
+  color: #b7c0d6;
+}
+
+/* Currently selected sort key / edit-mode toggle. */
+.pixel-tab.active {
+  background: var(--px-cyan-dark);
+  color: #eafcff;
+}
+
+/* "Compare Pools" icon: two overlapping squares, drawn with two <i>
+   elements rather than an SVG so it stays pixel-crisp. */
+.pixel-compare-icon {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 12px;
+}
+
+.pixel-compare-icon i {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 2px var(--px-outline);
+}
+
+.pixel-compare-icon i:first-child {
+  left: 0;
+  top: 0;
+}
+
+.pixel-compare-icon i:last-child {
+  left: 5px;
+  top: 3px;
+  background: var(--px-gold-dark);
+}
+
+/* == 5. Inputs & search ======================================== */
+
+/* Text input & select: replaces rounded corners + border with the
+   same inset-bevel treatment as everything else. */
+.pixel-input,
+.pixel-select {
+  background: var(--px-outline);
+  color: #eafcff;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  box-shadow:
+    inset 2px 2px 0 rgba(0,0,0,0.5),
+    inset -2px -2px 0 rgba(255,255,255,0.06),
+    0 0 0 3px var(--px-cyan-dark);
+  transition: box-shadow 80ms steps(1);
+}
+
+.pixel-input::placeholder {
+  color: #6a7690;
+}
+
+.pixel-input:focus,
+.pixel-select:focus {
+  outline: none;
+  box-shadow:
+    inset 2px 2px 0 rgba(0,0,0,0.5),
+    inset -2px -2px 0 rgba(255,255,255,0.06),
+    0 0 0 3px var(--px-cyan);
+}
+
+/* Search box in the topbar: same look as .pixel-input, but a flex
+   container instead of a plain <input> so the ">" prompt glyph and
+   the text field share one bordered box. */
+.pixel-searchbox {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--px-outline);
+  padding: 9px 12px;
+  box-shadow:
+    inset 2px 2px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 3px var(--px-cyan-dark);
+  transition: box-shadow 80ms steps(1);
+}
+
+.pixel-searchbox:focus-within {
+  box-shadow:
+    inset 2px 2px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 3px var(--px-cyan);
+}
+
+/* The <input> itself is unstyled and transparent; the box above
+   carries all the visual styling. */
+.pixel-searchbox input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #eafcff;
+  font-size: 13px;
+}
+
+.pixel-searchbox input::placeholder {
+  color: #6a7690;
+}
+
+.pixel-searchbox .prompt {
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  color: var(--px-cyan-dark);
+}
+
+/* == 6. Badges & stat chips ==================================== */
+
+/* Difficulty badge (SongCard). Base color is cyan; ranked/unranked
+   state and difficulty override the color via the modifier classes
+   further down. */
+.pixel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--px-cyan-dark);
+  color: #eafcff;
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.25),
+    inset -2px -2px 0 rgba(0,0,0,0.3),
+    0 0 0 2px var(--px-outline);
+}
+
+/* Ranked difficulty: always gold, regardless of its difficulty color,
+   with an extra gold outline ring so it reads as "special" at a glance. */
+.pixel-badge.starred {
+  background: var(--px-gold-dark);
+  color: #fff7e0;
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.35),
+    inset -2px -2px 0 rgba(0,0,0,0.35),
+    0 0 0 2px var(--px-outline),
+    0 0 0 4px var(--px-gold);
+}
+
+/* Unranked difficulties keep the standard Beat Saber difficulty
+   colors instead of the default cyan. Only applied when the badge is
+   NOT .starred (see SongCard.tsx: star !== undefined picks .starred,
+   otherwise diff-<Difficulty>). */
+.pixel-badge.diff-Easy {
+  background: #16a34a;
+  color: #eafff1;
+}
+.pixel-badge.diff-Normal {
+  background: #2563eb;
+  color: #e6efff;
+}
+.pixel-badge.diff-Hard {
+  background: #ea580c;
+  color: #2a1000;
+}
+.pixel-badge.diff-Expert {
+  background: #dc2626;
+  color: #fff0f0;
+}
+.pixel-badge.diff-ExpertPlus {
+  background: #7c3aed;
+  color: #f3e9ff;
+}
+
+/* Stat chip: small pill used for author/players/popularity on the
+   pool card, and for the ranked/found/missing counters in the pool
+   header (see PoolHeader.tsx). */
+.pixel-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  background: var(--px-outline);
+  color: #b7c0d6;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.08);
+}
+
+.pixel-stat b {
+  color: #eafcff;
+}
+
+/* Used for the "NOT FOUND" counter — draws attention without being a
+   full error color. */
+.pixel-stat.warn {
+  color: var(--px-gold);
+  box-shadow: 0 0 0 2px rgba(243, 197, 66, 0.35);
+}
+
+/* The "show"/"hide" toggle inside a .pixel-stat.warn chip. */
+.pixel-stat-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 4px;
+  font-size: 11px;
+  color: #6a7690;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* == 7. Cards =================================================== */
+
+/* Generic card (SongCard): the workhorse component. Background +
+   4-shadow stack = beveled panel with a hard outline and a drop
+   shadow that reacts to hover/active. */
+.pixel-card {
+  background: var(--px-bg);
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 6px 0 var(--px-outline);
+  transition: transform 80ms steps(1), box-shadow 80ms steps(1);
+}
+
+/* Lifts up slightly and the drop shadow grows, like the card "floats". */
+.pixel-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 8px 0 var(--px-outline);
+}
+
+/* Pressed: sinks below its resting position. */
+.pixel-card:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 3px 0 var(--px-outline);
+}
+
+/* Pool card (PoolCard.tsx): same recipe as .pixel-card, tuned with a
+   taller resting/hover/active shadow since the card itself is taller. */
+.pixel-pool-card {
+  background: var(--px-bg);
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 8px 0 var(--px-outline);
+  transition: transform 80ms steps(1), box-shadow 80ms steps(1);
+}
+
+.pixel-pool-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 11px 0 var(--px-outline);
+}
+
+.pixel-pool-card:active {
+  transform: translateY(4px);
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 4px 0 var(--px-outline);
+}
+
+/* Cover image (song/pool thumbnail): pixelated scaling + hard outline
+   instead of rounded corners + border. */
+.pixel-cover {
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 3px var(--px-outline);
+}
+
+/* Fallback background shown behind a cover image while it loads or if
+   it's transparent, so there's never a flash of empty space. */
+.pixel-thumb {
+  background: var(--px-outline);
+  box-shadow: 0 0 0 2px var(--px-outline), inset 0 0 0 2px rgba(255,255,255,0.08);
+}
+
+/* Fallback stripe pattern for pools without a banner image (or a
+   broken banner URL) — designed to read as an intentional choice
+   rather than a broken image. */
+.pixel-banner-fallback {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--px-bg) 0 8px,
+    var(--px-outline) 8px 16px
+  );
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.05);
+}
+
+/* Gradient overlay so the pool title stays readable over any banner
+   image, regardless of the banner's own colors/brightness. */
+.pixel-card-title-scrim {
+  background: linear-gradient(
+    180deg,
+    rgba(10, 10, 22, 0) 0%,
+    rgba(10, 10, 22, 0.92) 70%
+  );
+}
+
+/* == 8. Topbar =================================================== */
+
+/* App-wide topbar: logo + search + sort tabs + compare button, all in
+   one row (see App.tsx TopBar). */
+.pixel-topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 24px;
+  background: var(--px-bg);
+  box-shadow:
+    inset 0 3px 0 var(--px-bg-light),
+    0 4px 0 var(--px-outline);
+}
+
+/* == 9. Section labels & icons =================================== */
+
+/* Section heading, e.g. "ALL POOLS" above the pool grid. */
+.pixel-section-label {
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  color: var(--px-gold);
+}
+
+/* == 10. Pool header (banner + leaderboard) ====================== */
+/* See PoolHeader.tsx for the component these classes belong to. */
+
+/* Fixed-height banner: cover (176x176) + info + leaderboard side by
+   side. The fixed height means the leaderboard can never make the
+   header grow — see .pixel-pool-header-lb below. */
+.pixel-pool-header {
+  display: flex;
+  height: 176px; /* must match cover width/height exactly */
+  margin: 0 0 20px;
+  background: var(--px-bg);
+  box-shadow:
+    0 0 0 4px var(--px-outline),
+    0 8px 0 var(--px-outline);
+}
+
+.pixel-pool-header-cover {
+  width: 176px;
+  height: 176px;
+  flex-shrink: 0;
+  background-color: var(--px-outline);
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
+  box-shadow: inset -4px 0 0 var(--px-outline);
+}
+
+/* Title, description, stat chips and action buttons. */
+.pixel-pool-header-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 13px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Leaderboard column: fixed width, and its content is positioned
+   absolutely + clipped (overflow: hidden) so extra leaderboard rows
+   get cut off instead of growing the header's height. */
+.pixel-pool-header-lb {
+  position: relative;
+  overflow: hidden;
+  width: 256px;
+  flex-shrink: 0;
+  background: var(--px-outline);
+  box-shadow: inset 4px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.pixel-pool-header-lb .inner {
+  position: absolute;
+  inset: 0;
+  padding: 11px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pixel-lb-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 8px;
+  background: var(--px-bg);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+.pixel-lb-row .name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: #eafcff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pixel-lb-row .cr {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--px-cyan);
+}
+
+/* == 11. Song card internals ===================================== */
+/* See SongCard.tsx. */
+
+/* Difficulty rows container: sits below the cover/title header, with
+   an inset top divider instead of a border so it doesn't add width. */
+.pixel-diff-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  box-shadow:
+    inset 0 2px 0 rgba(0, 0, 0, 0.35),
+    inset 0 3px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Bottom strip: upload date + external links (BeatLeader/BeatSaver). */
+.pixel-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 11px;
+  color: #6a7690;
+  background: var(--px-outline);
+}
+
+/* Edit mode: makes the whole badge a click target (toggle one diff),
+   not just the little checkbox inside it — see SongCard.tsx, the
+   badge <span> gets this class + an onClick handler while editMode
+   is on. */
+.pixel-badge-selectable {
+  cursor: pointer;
+  user-select: none;
+}
+.pixel-badge-selectable:hover {
+  filter: brightness(1.15);
+}
+
+/* Applied together with .pixel-badge when that difficulty is part of
+   the current selection. */
+.pixel-badge.selected {
+  outline: 2px solid #eafcff;
+  outline-offset: 2px;
+}
+
+/* Edit mode on the card itself: clicking anywhere on the card (other
+   than a badge or a footer link) selects/deselects every difficulty
+   of that song instead of navigating to the song page. This class
+   only changes the cursor as a visual hint — the actual behavior
+   swap happens in SongCard.tsx's onClick handler. */
+.pixel-card-edit {
+  cursor: copy;
+}

@@ -1,9 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, Link } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useParams,
+  Link,
+} from "react-router-dom";
 import SongList from "./components/SongList";
 import SongInfo from "./components/SongInfo";
 import { SongPoolProvider } from "./components/SongPoolProvider";
 import RankNewMaps from "./components/RankNewMaps";
+import logo from "./assets/Logo.png";
+import PoolCard from "./components/PoolCard";
+import "./components/pixel-ui.css";
 
 interface PoolDetailed {
   id: string;
@@ -16,19 +25,74 @@ interface PoolDetailed {
   banner_image?: string;
 }
 
+type SortKey = "popularity" | "name" | "players";
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "popularity", label: "POPULAR" },
+  { key: "players", label: "PLAYERS" },
+  { key: "name", label: "A–Z" },
+];
+
+// Topbar: logo + search + sort tabs + compare, all in one row
+const TopBar: React.FC<{
+  search: string;
+  setSearch: (v: string) => void;
+  sort: SortKey;
+  setSort: (v: SortKey) => void;
+}> = ({ search, setSearch, sort, setSort }) => (
+  <div className="pixel-topbar">
+    <Link to="/" className="pixel-icon-btn shrink-0">
+      <img
+        src={logo}
+        alt="Hitbloq Pool Manager"
+        className="h-9 w-auto"
+        style={{ imageRendering: "pixelated" }}
+      />
+    </Link>
+
+    <div className="pixel-searchbox">
+      <span className="prompt">&gt;</span>
+      <input
+        type="text"
+        placeholder="Search pools, authors, ids..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+    </div>
+
+    <div className="pixel-tabs">
+      {SORTS.map((s) => (
+        <button
+          key={s.key}
+          className={`pixel-tab${sort === s.key ? " active" : ""}`}
+          onClick={() => setSort(s.key)}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+
+    <button className="pixel-btn with-icon shrink-0">
+      <span className="pixel-compare-icon">
+        <i />
+        <i />
+      </span>
+      Compare Pools
+    </button>
+  </div>
+);
+
 // Card view for all pools with search and sorting
 const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
-  const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"popularity" | "name" | "players">("popularity");
+  const [sort, setSort] = useState<SortKey>("popularity");
 
-  // Filter and sort pools
   const filtered = pools
     .filter(
       (pool) =>
         pool.title.toLowerCase().includes(search.toLowerCase()) ||
         pool.author.toLowerCase().includes(search.toLowerCase()) ||
-        pool.id.toLowerCase().includes(search.toLowerCase())
+        pool.id.toLowerCase().includes(search.toLowerCase()),
     )
     .sort((a, b) => {
       if (sort === "popularity") return b.popularity - a.popularity;
@@ -36,67 +100,39 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
       return a.title.localeCompare(b.title);
     });
 
+  const sortLabel =
+    sort === "popularity" ? "popularity" : sort === "players" ? "players" : "name";
+
   return (
-    <div>
-      {/* Search and Sort */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-8 items-center">
-        <input
-          type="text"
-          placeholder="Search pools..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 rounded bg-neutral-800 border border-neutral-700 text-neutral-100 w-full sm:w-72"
-        />
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as any)}
-          className="px-3 py-2 rounded bg-neutral-800 border border-neutral-700 text-neutral-100"
-        >
-          <option value="popularity">Sort by: Popularity</option>
-          <option value="name">Sort by: Name</option>
-          <option value="players">Sort by: Players</option>
-        </select>
-      </div>
-      {/* Pool-Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filtered.map((pool) => (
-          <div
-            key={pool.id}
-            className="bg-neutral-800 border border-neutral-700 rounded-xl p-6 shadow hover:shadow-lg cursor-pointer flex flex-col items-center transition-all"
-            onClick={() => navigate(`/pool/${pool.id}`)}
-          >
-            <img
-              src={pool.image}
-              alt={pool.title}
-              className="w-32 h-32 object-cover rounded-lg border border-neutral-700 shadow mb-4"
-            />
-            <div className="text-2xl font-bold text-cyan-300 mb-2 text-center">{pool.title}</div>
-            <div className="text-neutral-400 text-base mb-2 text-center">{pool.short_description}</div>
-            <div className="flex gap-4 mt-2 text-sm text-neutral-500">
-              <span>
-                Author: <span className="font-semibold text-neutral-300">{pool.author}</span>
-              </span>
-              <span>
-                Players: <span className="font-semibold text-neutral-300">{pool.player_count}</span>
-              </span>
-              <span>
-                Popularity: <span className="font-semibold text-neutral-300">{pool.popularity}</span>
-              </span>
-            </div>
-            {pool.banner_image && (
-              <img
-                src={pool.banner_image}
-                alt="Banner"
-                className="mt-2 w-full max-h-16 object-cover rounded"
-              />
-            )}
+    <>
+      <TopBar
+        search={search}
+        setSearch={setSearch}
+        sort={sort}
+        setSort={setSort}
+      />
+
+      <div className="w-full max-w-screen-2xl mx-auto px-6">
+        <div className="flex items-baseline gap-2.5 pt-5 pb-3.5">
+          <span className="pixel-section-label">ALL POOLS</span>
+          <span className="text-xs text-neutral-500">
+            {filtered.length} pools · sorted by {sortLabel}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch pb-10">
+          {filtered.map((pool) => (
+            <PoolCard key={pool.id} pool={pool} />
+          ))}
+        </div>
+
+        {filtered.length === 0 && (
+          <div className="pixel-font text-[11px] text-orange-400 text-center mt-8">
+            No pools found.
           </div>
-        ))}
+        )}
       </div>
-      {filtered.length === 0 && (
-        <div className="text-orange-400 text-center mt-8">No pools found.</div>
-      )}
-    </div>
+    </>
   );
 };
 
@@ -104,54 +140,36 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
 const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   const { id } = useParams<{ id: string }>();
   const pool = pools.find((p) => p.id === id);
-  if (!id || !pool) return <div className="text-orange-400">Pool not found.</div>;
-  return (
-    <div>
-      <div className="flex flex-col md:flex-row items-center gap-6 bg-neutral-800 border border-neutral-700 rounded-xl p-6 shadow w-full max-w-2xl mx-auto mb-8">
-        <img
-          src={pool.image}
-          alt={pool.title}
-          className="w-32 h-32 object-cover rounded-lg border border-neutral-700 shadow"
-        />
-        <div className="flex-1 flex flex-col gap-2">
-          <div className="text-2xl font-bold text-cyan-300">{pool.title}</div>
-          <div className="text-neutral-400 text-base">{pool.short_description}</div>
-          <div className="flex gap-4 mt-2 text-sm text-neutral-500">
-            <span>
-              Author: <span className="font-semibold text-neutral-300">{pool.author}</span>
-            </span>
-            <span>
-              Players: <span className="font-semibold text-neutral-300">{pool.player_count}</span>
-            </span>
-            <span>
-              Popularity: <span className="font-semibold text-neutral-300">{pool.popularity}</span>
-            </span>
-          </div>
-          {pool.banner_image && (
-            <img
-              src={pool.banner_image}
-              alt="Banner"
-              className="mt-2 w-full max-h-16 object-cover rounded"
-            />
-          )}
-        </div>
-      </div>
-      <SongList poolId={id} />
-    </div>
-  );
+  if (!id || !pool)
+    return <div className="text-orange-400">Pool not found.</div>;
+  return <SongList poolId={id} pool={pool} />;
 };
+
+// Header for all non-overview pages (the overview brings its own topbar)
+const SubPageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <>
+    <div className="pixel-topbar">
+      <Link to="/" className="pixel-icon-btn shrink-0">
+        <img
+          src={logo}
+          alt="Hitbloq Pool Manager"
+          className="h-9 w-auto"
+          style={{ imageRendering: "pixelated" }}
+        />
+      </Link>
+    </div>
+    <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">{children}</div>
+  </>
+);
 
 const App: React.FC = () => {
   const [pools, setPools] = useState<PoolDetailed[]>([]);
 
-  // Fetch pools while loading
   useEffect(() => {
     fetch("http://localhost:3001/proxy/map_pools_detailed")
       .then((res) => res.json())
       .then((data) =>
-        setPools(
-          [...data].sort((a, b) => b.popularity - a.popularity)
-        )
+        setPools([...data].sort((a, b) => b.popularity - a.popularity)),
       )
       .catch(() => setPools([]));
   }, []);
@@ -159,20 +177,34 @@ const App: React.FC = () => {
   return (
     <SongPoolProvider>
       <Router>
-        <div className="min-h-screen bg-neutral-900 font-sans">
-          <div className="w-full max-w-screen-2xl mx-auto px-4 py-8">
-            <h1 className="text-4xl font-bold mb-8 text-cyan-400 text-center tracking-tight">
-              <Link to="/" className="hover:underline hover:text-cyan-300 transition-colors">
-                Hitbloq Pool Manager
-              </Link>
-            </h1>
-            <Routes>
-              <Route path="/" element={<PoolOverview pools={pools} />} />
-              <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
-              <Route path="/song/:id" element={<SongInfo />} />
-              <Route path="/pool/:poolId/rank-new" element={<RankNewMaps />} />
-            </Routes>
-          </div>
+        <div className="min-h-screen pixel-bg font-sans">
+          <Routes>
+            <Route path="/" element={<PoolOverview pools={pools} />} />
+            <Route
+              path="/pool/:id"
+              element={
+                <SubPageShell>
+                  <PoolSongListPage pools={pools} />
+                </SubPageShell>
+              }
+            />
+            <Route
+              path="/song/:id"
+              element={
+                <SubPageShell>
+                  <SongInfo />
+                </SubPageShell>
+              }
+            />
+            <Route
+              path="/pool/:poolId/rank-new"
+              element={
+                <SubPageShell>
+                  <RankNewMaps />
+                </SubPageShell>
+              }
+            />
+          </Routes>
         </div>
       </Router>
     </SongPoolProvider>

@@ -7,7 +7,12 @@ export function renderFunnyHahaPaulsSongs(
   poolId: string,
   selectedDiffs: any,
   toggleDiffSelection: any,
-  editMode: boolean
+  editMode: boolean,
+  setSongSelection?: (
+    hash: string,
+    select: boolean,
+    diffs: { characteristic: string; difficulty: string }[],
+  ) => void
 ) {
   // Mark songs with 20.69 stars as "new" and separate them from the rest
   const newSongs = bsSongs.filter((song) => {
@@ -36,7 +41,7 @@ export function renderFunnyHahaPaulsSongs(
             {newSongs.map((song) => (
               <div className="relative group" key={song.versions?.[0]?.hash || song.id}>
                 {/* Ribbon-Badge top right */}
-                <span className="absolute top-0 right-0 z-10 bg-cyan-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl shadow-lg group-hover:scale-110 transition-transform select-none">
+                <span className="absolute top-0 right-0 z-10 bg-cyan-500 text-white text-xs font-bold px-3 py-1 shadow-lg group-hover:scale-110 transition-transform select-none">
                   NEW
                 </span>
                 <SongCard
@@ -46,6 +51,9 @@ export function renderFunnyHahaPaulsSongs(
                   selectedDiffs={selectedDiffs[song.versions?.[0]?.hash?.toUpperCase()] || {}}
                   onToggleDiff={(characteristic, difficulty) =>
                     toggleDiffSelection(song.versions?.[0]?.hash?.toUpperCase(), characteristic, difficulty)
+                  }
+                  onToggleAllDiffs={(select, diffs) =>
+                    setSongSelection?.(song.versions?.[0]?.hash?.toUpperCase(), select, diffs)
                   }
                   editMode={editMode}
                   // isNew stays true for the SongCard, so it can show a "new" badge on the card itself if needed
@@ -65,6 +73,9 @@ export function renderFunnyHahaPaulsSongs(
             selectedDiffs={selectedDiffs[song.versions?.[0]?.hash?.toUpperCase()] || {}}
             onToggleDiff={(characteristic, difficulty) =>
               toggleDiffSelection(song.versions?.[0]?.hash?.toUpperCase(), characteristic, difficulty)
+            }
+            onToggleAllDiffs={(select, diffs) =>
+              setSongSelection?.(song.versions?.[0]?.hash?.toUpperCase(), select, diffs)
             }
             editMode={editMode}
           />

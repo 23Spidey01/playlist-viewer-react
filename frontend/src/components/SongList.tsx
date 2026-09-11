@@ -4,12 +4,15 @@ import type { BSSongInfo, DetailedSong } from "./types";
 import { diffMap, charMap } from "./types";
 import { useSongPoolCache } from "./useSongPoolCache";
 import { renderFunnyHahaPaulsSongs } from "./PoolFeatures/FunnyHahaPauls";
+import PoolHeader from "./PoolHeader";
+import type { PoolDetailed, LeaderEntry } from "./PoolHeader";
 
 interface SongListProps {
   poolId: string;
+  pool: PoolDetailed;
 }
 
-const SongList: React.FC<SongListProps> = ({ poolId }) => {
+const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   // State for all songs from Hitbloq (ranked_list_detailed)
   const [songs, setSongs] = useState<DetailedSong[]>([]);
   // State for all songs found from BeatSaver
@@ -32,6 +35,49 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
   // State for edit mode
   const [editMode, setEditMode] = useState(false);
 
+  // Leaderboard data for the pool header
+  const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
+
+  useEffect(() => {
+    const fetchLeaders = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:3001/proxy/ladder/${poolId}/players/0`,
+        );
+        const data = await res.json();
+        setLeaders(
+          data.ladder.slice(0, 5).map((p: any) => ({
+            rank: p.rank,
+            name: p.username ?? p.name,
+            cr: p.cr ?? 0,
+          })),
+        );
+      } catch {
+        setLeaders([]);
+      }
+    };
+
+    fetchLeaders();
+  }, [poolId]);
+
+  const handleRecalculateCR = async () => {
+    const key = prompt("Please enter the API key for this pool:");
+    if (!key) return alert("No API key entered.");
+    setLoading(true);
+    const res = await fetch("http://localhost:3001/proxy/recalculate_cr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, pool: poolId }),
+    });
+    setLoading(false);
+    const result = await res.json();
+    alert(
+      result.status === "success"
+        ? "CR recalculated!"
+        : "Error: " + (result.error || result.status),
+    );
+  };
+
   // Load all songs from the selected pool (Hitbloq API)
   useEffect(() => {
     if (!poolId) return;
@@ -50,7 +96,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
       let allSongs: DetailedSong[] = [];
       while (true) {
         const res = await fetch(
-          `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`
+          `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`,
         );
         const data = await res.json();
         if (!Array.isArray(data) || data.length === 0) break;
@@ -59,15 +105,15 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
         page++;
       }
       setSongs(allSongs);
-      
+
       // Load BeatSaver songs and write everything to cache!
       const hashes = Array.from(
         new Set(
-          allSongs.map((song) => song.song_id.split("_")[0].toLowerCase())
-        )
+          allSongs.map((song) => song.song_id.split("_")[0].toLowerCase()),
+        ),
       );
       const loadedBsSongs = await fetchBeatSaverSongs(hashes);
-      
+
       setBsSongs(loadedBsSongs);
       setLoading(false);
       setStarRatingMap(buildStarRatingMap(allSongs));
@@ -123,7 +169,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
 
   // Hashes from Hitbloq songs (uppercase)
   const hitbloqHashes = songs.map((song) =>
-    song.song_id.split("_")[0].toUpperCase()
+    song.song_id.split("_")[0].toUpperCase(),
   );
   // Hashes from BeatSaver songs (uppercase)
   const beatsaverHashes = bsSongs
@@ -131,14 +177,14 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     .filter(Boolean);
   // Hashes that are in Hitbloq but not in BeatSaver
   const missingHashes = Array.from(new Set(hitbloqHashes)).filter(
-    (hash) => !beatsaverHashes.includes(hash)
+    (hash) => !beatsaverHashes.includes(hash),
   );
 
   // Toggle difficulty selection
   const toggleDiffSelection = (
     hash: string,
     characteristic: string,
-    difficulty: string
+    difficulty: string,
   ) => {
     setSelectedDiffs((prev) => {
       const prevChar = prev[hash]?.[characteristic] || [];
@@ -155,277 +201,289 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
     });
   };
 
-  const allSelectedAreRanked = Object.entries(selectedDiffs).every(([hash, chars]) =>
-    Object.entries(chars).every(([characteristic, diffs]) =>
-      diffs.every(
-        (difficulty) =>
-          starRatingMap[hash]?.[characteristic]?.[difficulty] !== undefined
-      )
-    )
+  // Select or deselect every difficulty of one song at once
+  const setSongSelection = (
+    hash: string,
+    select: boolean,
+    diffs: { characteristic: string; difficulty: string }[],
+  ) => {
+    setSelectedDiffs((prev) => {
+      const next = { ...prev };
+      if (!select) {
+        delete next[hash];
+        return next;
+      }
+      const charMap: { [characteristic: string]: string[] } = {};
+      diffs.forEach(({ characteristic, difficulty }) => {
+        charMap[characteristic] = [
+          ...(charMap[characteristic] || []),
+          difficulty,
+        ];
+      });
+      next[hash] = charMap;
+      return next;
+    });
+  };
+
+  const allSelectedAreRanked = Object.entries(selectedDiffs).every(
+    ([hash, chars]) =>
+      Object.entries(chars).every(([characteristic, diffs]) =>
+        diffs.every(
+          (difficulty) =>
+            starRatingMap[hash]?.[characteristic]?.[difficulty] !== undefined,
+        ),
+      ),
   );
 
-  const allSelectedAreUnranked = Object.entries(selectedDiffs).every(([hash, chars]) =>
-    Object.entries(chars).every(([characteristic, diffs]) =>
-      diffs.every(
-        (difficulty) =>
-          starRatingMap[hash]?.[characteristic]?.[difficulty] === undefined
-      )
-    )
+  const allSelectedAreUnranked = Object.entries(selectedDiffs).every(
+    ([hash, chars]) =>
+      Object.entries(chars).every(([characteristic, diffs]) =>
+        diffs.every(
+          (difficulty) =>
+            starRatingMap[hash]?.[characteristic]?.[difficulty] === undefined,
+        ),
+      ),
   );
+
+  // Total number of currently selected difficulties (across all songs)
+  const selectedCount = Object.values(selectedDiffs).reduce(
+    (sum, chars) =>
+      sum + Object.values(chars).reduce((s, arr) => s + arr.length, 0),
+    0,
+  );
+
+  // Rank every selected difficulty that is not ranked yet
+  const rankAllSelected = async () => {
+    if (!allSelectedAreUnranked) return;
+    const key = prompt("API Key?");
+    if (!key) return;
+    let count = 0;
+    for (const hash in selectedDiffs) {
+      for (const characteristic in selectedDiffs[hash]) {
+        for (const difficulty of selectedDiffs[hash][characteristic]) {
+          if (starRatingMap[hash]?.[characteristic]?.[difficulty] !== undefined)
+            continue;
+          const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
+          await fetch("http://localhost:3001/proxy/rank", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key, pool: poolId, song: formattedId }),
+          });
+          count++;
+        }
+      }
+    }
+    await fetch("http://localhost:3001/proxy/recalculate_cr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, pool: poolId }),
+    });
+    alert(`${count} Difficulties ranked and CR recalculated!`);
+    window.location.reload();
+  };
+
+  // Unrank every selected difficulty (only allowed when all are currently ranked)
+  const unrankAllSelected = async () => {
+    if (!allSelectedAreRanked) return;
+    const key = prompt("API Key?");
+    if (!key) return;
+    let count = 0;
+    for (const hash in selectedDiffs) {
+      for (const characteristic in selectedDiffs[hash]) {
+        for (const difficulty of selectedDiffs[hash][characteristic]) {
+          const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
+          await fetch("http://localhost:3001/proxy/unrank", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key, pool: poolId, song: formattedId }),
+          });
+          count++;
+        }
+      }
+    }
+    await fetch("http://localhost:3001/proxy/recalculate_cr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, pool: poolId }),
+    });
+    alert(`${count} Difficulties unranked!`);
+    window.location.reload();
+  };
+
+  // Set a star rating for the whole selection; ranks unranked diffs first if needed
+  const setStarRatingForSelection = async () => {
+    const unrankedDiffs: {
+      hash: string;
+      characteristic: string;
+      difficulty: string;
+    }[] = [];
+    for (const hash in selectedDiffs) {
+      for (const characteristic in selectedDiffs[hash]) {
+        for (const difficulty of selectedDiffs[hash][characteristic]) {
+          if (
+            starRatingMap[hash]?.[characteristic]?.[difficulty] === undefined
+          ) {
+            unrankedDiffs.push({ hash, characteristic, difficulty });
+          }
+        }
+      }
+    }
+
+    if (unrankedDiffs.length > 0) {
+      const proceed = window.confirm(
+        "Your selection contains difficulties that are not ranked yet.\n" +
+          "Should these be ranked first and then the star rating be set?",
+      );
+      if (!proceed) return;
+      const rankKey = prompt("API Key?");
+      if (!rankKey) return;
+      for (const { hash, characteristic, difficulty } of unrankedDiffs) {
+        const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
+        await fetch("http://localhost:3001/proxy/rank", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: rankKey,
+            pool: poolId,
+            song: formattedId,
+          }),
+        });
+      }
+      await fetch("http://localhost:3001/proxy/recalculate_cr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: rankKey, pool: poolId }),
+      });
+      alert(
+        `${unrankedDiffs.length} Difficulties ranked first! Now the star rating will be set.`,
+      );
+    }
+
+    const key = prompt("API Key?");
+    if (!key) return;
+    const isAutomatic = window.confirm(
+      "Calculate star rating automatically?\n\nOK = Automatic\nCancel = Manual",
+    );
+    let manualRating: number | undefined = undefined;
+    if (!isAutomatic) {
+      let rating = prompt("What star rating to set for all? (e.g. 8.5)");
+      if (!rating) return alert("No star rating entered.");
+      rating = rating.replace(",", ".");
+      manualRating = parseFloat(rating);
+      if (isNaN(manualRating) || manualRating < 0)
+        return alert("Invalid star rating.");
+    }
+    let count = 0;
+    for (const hash in selectedDiffs) {
+      for (const characteristic in selectedDiffs[hash]) {
+        for (const difficulty of selectedDiffs[hash][characteristic]) {
+          const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
+          if (isAutomatic) {
+            await fetch("http://localhost:3001/proxy/set_automatic", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key, pool: poolId, song: formattedId }),
+            });
+          } else {
+            await fetch("http://localhost:3001/proxy/set_manual", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                key,
+                pool: poolId,
+                song: formattedId,
+                rating: manualRating,
+              }),
+            });
+          }
+          count++;
+        }
+      }
+    }
+    await fetch("http://localhost:3001/proxy/recalculate_cr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, pool: poolId }),
+    });
+    alert(`${count} Difficulties changed and CR recalculated!`);
+    window.location.reload();
+  };
 
   return (
     <div>
       {/* Loading indicator */}
       {loading && <p className="text-cyan-400">Loading pool...</p>}
-      {/* Statistics and actions */}
       {!loading && (
-        <div className="mb-6 text-neutral-300 text-sm flex flex-wrap gap-4 items-center">
-          <span>
-            Ranked Difficulties in Pool: <b>{songs.length}</b>
+        <PoolHeader
+          pool={pool}
+          rankedDiffs={songs.length}
+          foundOnBeatSaver={bsSongs.length}
+          missingCount={missingHashes.length}
+          showMissing={showMissing}
+          onToggleMissing={() => setShowMissing((v) => !v)}
+          onRankNewMaps={() =>
+            (window.location.href = `/pool/${poolId}/rank-new`)
+          }
+          onRecalculateCR={handleRecalculateCR}
+          editMode={editMode}
+          onToggleEditMode={() => setEditMode((v) => !v)}
+          leaders={leaders}
+        />
+      )}
+      {/* Actions for the current difficulty selection (edit mode) */}
+      {!loading && selectedCount > 0 && (
+        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 bg-neutral-900/95 border border-neutral-700 p-3 mb-6 shadow-lg">
+          <span className="pixel-font text-[10px] text-cyan-300 mr-1">
+            {selectedCount} SELECTED
           </span>
-          <span>
-            Songs found on BeatSaver: <b>{bsSongs.length}</b>
-          </span>
-          <span className="flex items-center gap-2 flex-wrap w-full">
-            Songs not found: <b>{missingHashes.length}</b>
-            {/* Button to collapse/expand missing hash list */}
-            {missingHashes.length > 0 && (
-              <button
-                className="px-2 py-1 bg-neutral-700 text-neutral-200 rounded hover:bg-neutral-600 text-xs"
-                onClick={() => setShowMissing((v) => !v)}
-              >
-                {showMissing ? "Hide List" : "Show List"}
-              </button>
-            )}
-            {/* Button to copy missing hashes */}
-            {missingHashes.length > 0 && (
-              <button
-                className="px-2 py-1 bg-neutral-700 text-neutral-200 rounded hover:bg-neutral-600 text-xs"
-                onClick={() =>
-                  navigator.clipboard.writeText(missingHashes.join("\n"))
-                }
-              >
-                Copy Hash List
-              </button>
-            )}
-            <div className="flex w-full mt-2">
-              <button
-                className="px-6 py-3 bg-green-700 text-neutral-100 rounded-lg hover:bg-green-800 text-base font-bold shadow transition-all mr-4"
-                style={{ minWidth: "180px" }}
-                onClick={() =>
-                  (window.location.href = `/pool/${poolId}/rank-new`)
-                }
-              >
-                Rank New Maps
-              </button>
-              <button
-                className="px-6 py-3 bg-cyan-700 text-neutral-100 rounded-lg hover:bg-cyan-800 text-base font-bold shadow transition-all"
-                style={{ minWidth: "180px" }}
-                onClick={async () => {
-                  const key = prompt(
-                    "Please enter the API key for this pool:"
-                  );
-                  if (!key) return alert("No API key entered.");
-                  setLoading(true);
-                  const res = await fetch(
-                    "http://localhost:3001/proxy/recalculate_cr",
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ key, pool: poolId }),
-                    }
-                  );
-                  setLoading(false);
-                  const result = await res.json();
-                  alert(
-                    result.status === "success"
-                      ? "CR recalculated!"
-                      : "Error: " + (result.error || result.status)
-                  );
-                }}
-              >
-                Recalculate CR
-              </button>
-              {/* Actions for selected difficulties */}
-              {Object.keys(selectedDiffs).some((hash) =>
-                Object.values(selectedDiffs[hash] || {}).some(
-                  (arr) => arr.length > 0
-                )
-              ) && (
-                <div className="flex gap-4 flex-wrap ml-auto mb-4">
-                  <button
-                    className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 font-semibold disabled:opacity-50"
-                    disabled={!allSelectedAreRanked}
-                    onClick={async () => {
-                      if (!allSelectedAreRanked) return;
-                      const key = prompt("API Key?");
-                      if (!key) return;
-                      let count = 0;
-                      for (const hash in selectedDiffs) {
-                        for (const characteristic in selectedDiffs[hash]) {
-                          for (const difficulty of selectedDiffs[hash][characteristic]) {
-                            const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-                            await fetch("http://localhost:3001/proxy/unrank", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ key, pool: poolId, song: formattedId }),
-                            });
-                            count++;
-                          }
-                        }
-                      }
-                      // CR recalculate
-                      await fetch("http://localhost:3001/proxy/recalculate_cr", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ key, pool: poolId }),
-                      });
-                      alert(`${count} Difficulties unranked!`);
-                      window.location.reload();
-                    }}
-                  >
-                    Unrank All Selected
-                  </button>
-                  <button
-                    className="px-4 py-2 bg-yellow-700 text-white rounded hover:bg-yellow-800 font-semibold"
-                    onClick={async () => {
-                        // Check if there are unranked diffs in the selection
-                      const unrankedDiffs: { hash: string; characteristic: string; difficulty: string }[] = [];
-                      for (const hash in selectedDiffs) {
-                        for (const characteristic in selectedDiffs[hash]) {
-                          for (const difficulty of selectedDiffs[hash][characteristic]) {
-                            if (starRatingMap[hash]?.[characteristic]?.[difficulty] === undefined) {
-                              unrankedDiffs.push({ hash, characteristic, difficulty });
-                            }
-                          }
-                        }
-                      }
-
-                      if (unrankedDiffs.length > 0) {
-                        const proceed = window.confirm(
-                          "Your selection contains difficulties that are not ranked yet.\n" +
-                          "Should these be ranked first and then the star rating be set?"
-                        );
-                        if (!proceed) return;
-                        const key = prompt("API Key?");
-                        if (!key) return;
-
-                        // Zuerst alle ungerankten Diffs ranken
-                        for (const { hash, characteristic, difficulty } of unrankedDiffs) {
-                          const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-                          await fetch("http://localhost:3001/proxy/rank", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ key, pool: poolId, song: formattedId }),
-                          });
-                        }
-                        // Optional: CR recalculaten nach dem Ranken, aber vor dem Star Rating setzen
-                        await fetch("http://localhost:3001/proxy/recalculate_cr", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ key, pool: poolId }),
-                        });
-                        alert(`${unrankedDiffs.length} Difficulties ranked first! Now the star rating will be set.`);
-                        // Now continue with star rating as usual (see below)
-                      }
-                      const key = prompt("API Key?");
-                      if (!key) return;
-                      const isAutomatic = window.confirm(
-                        "Calculate star rating automatically?\n\nOK = Automatic\nCancel = Manual"
-                      );
-                      let manualRating: number | undefined = undefined;
-                      if (!isAutomatic) {
-                        let rating = prompt("What star rating to set for all? (e.g. 8.5)");
-                        if (!rating) return alert("No star rating entered.");
-                        rating = rating.replace(",", ".");
-                        manualRating = parseFloat(rating);
-                        if (isNaN(manualRating) || manualRating < 0) return alert("Invalid star rating.");
-                      }
-                      let count = 0;
-                      for (const hash in selectedDiffs) {
-                        for (const characteristic in selectedDiffs[hash]) {
-                          for (const difficulty of selectedDiffs[hash][characteristic]) {
-                            const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-                            if (isAutomatic) {
-                              await fetch("http://localhost:3001/proxy/set_automatic", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ key, pool: poolId, song: formattedId }),
-                              });
-                            } else {
-                              await fetch("http://localhost:3001/proxy/set_manual", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ key, pool: poolId, song: formattedId, rating: manualRating }),
-                              });
-                            }
-                            count++;
-                          }
-                        }
-                      }
-                      // CR recalculate
-                      await fetch("http://localhost:3001/proxy/recalculate_cr", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ key, pool: poolId }),
-                      });
-                      alert(`${count} Difficulties changed and CR recalculated!`);
-                      window.location.reload();
-                    }}
-                  >
-                    Set Star Rating for Selection
-                  </button>
-                  <button
-                    className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 font-semibold disabled:opacity-50"
-                    disabled={!allSelectedAreUnranked}
-                    onClick={async () => {
-                      if (!allSelectedAreUnranked) return;
-                      const key = prompt("API Key?");
-                      if (!key) return;
-                      let count = 0;
-                      for (const hash in selectedDiffs) {
-                        for (const characteristic in selectedDiffs[hash]) {
-                          for (const difficulty of selectedDiffs[hash][characteristic]) {
-                            // Only if not ranked yet:
-                            const isRanked =
-                              starRatingMap[hash]?.[characteristic]?.[difficulty] !== undefined;
-                            if (isRanked) continue;
-                            const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-                            await fetch("http://localhost:3001/proxy/rank", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ key, pool: poolId, song: formattedId }),
-                            });
-                            count++;
-                          }
-                        }
-                      }
-                      // CR recalculate
-                      await fetch("http://localhost:3001/proxy/recalculate_cr", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ key, pool: poolId }),
-                      });
-                      alert(`${count} Difficulties ranked and CR recalculated!`);
-                      window.location.reload();
-                    }}
-                  >
-                    Rank All Selected
-                  </button>
-                </div>
-              )}
-            </div>
-          </span>
+          <button
+            className="pixel-btn disabled:opacity-40"
+            disabled={!allSelectedAreUnranked}
+            onClick={rankAllSelected}
+          >
+            Rank All Selected
+          </button>
+          <button
+            className="pixel-btn secondary"
+            onClick={setStarRatingForSelection}
+          >
+            Set Star Rating
+          </button>
+          <button
+            className="pixel-btn secondary disabled:opacity-40"
+            disabled={!allSelectedAreRanked}
+            onClick={unrankAllSelected}
+          >
+            Unrank All Selected
+          </button>
+          <button
+            className="pixel-tab ml-auto"
+            onClick={() => setSelectedDiffs({})}
+          >
+            CLEAR
+          </button>
         </div>
       )}
-      {/* List missing songs (collapsible) */}
+      {/* List missing songs (collapsible, toggled from the header) */}
       {!loading && missingHashes.length > 0 && showMissing && (
-        <div className="mt-2 text-orange-400 text-xs">
+        <div className="bg-neutral-900/95 border border-neutral-700 p-3 mb-6 text-orange-400 text-xs">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="pixel-font text-[10px] text-orange-300">
+              NOT FOUND ON BEATSAVER
+            </span>
+            <button
+              className="pixel-tab"
+              onClick={() =>
+                navigator.clipboard.writeText(missingHashes.join("\n"))
+              }
+            >
+              COPY HASHES
+            </button>
+          </div>
           <ul className="list-disc pl-6">
-            {/* For each missing hash, display all associated songs with difficulty/characteristic */}
             {missingHashes.map((hash) => {
               const missingSongs = songs.filter((song) =>
-                song.song_id.startsWith(hash)
+                song.song_id.startsWith(hash),
               );
               return missingSongs.map((song) => {
                 const parts = song.song_id.split("_");
@@ -433,7 +491,6 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                 const charShort = parts[2];
                 const difficulty = diffMap[diffShort] || diffShort;
                 const characteristic = charMap[charShort] || charShort;
-                // Song ID in desired format for unrank API
                 const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
                 return (
                   <li key={song.song_id}>
@@ -443,7 +500,6 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
               });
             })}
           </ul>
-          {/* Button: Send all missing songs as unranked to the API */}
           <button
             className="mt-4 px-3 py-2 bg-red-700 text-white rounded hover:bg-red-800 font-semibold"
             onClick={async () => {
@@ -451,7 +507,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
               if (!key) return alert("No API key entered.");
               if (
                 !confirm(
-                  "Are you sure you want to send all missing songs as unranked?"
+                  "Are you sure you want to send all missing songs as unranked?",
                 )
               )
                 return;
@@ -460,7 +516,7 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
               let count = 0;
               for (const hash of missingHashes) {
                 const missingSongs = songs.filter((song) =>
-                  song.song_id.startsWith(hash)
+                  song.song_id.startsWith(hash),
                 );
                 for (const song of missingSongs) {
                   const parts = song.song_id.split("_");
@@ -469,15 +525,14 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
                   const difficulty = diffMap[diffShort] || diffShort;
                   const characteristic = charMap[charShort] || charShort;
                   const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-                  const body = {
-                    key,
-                    pool: poolId,
-                    song: formattedId,
-                  };
                   await fetch("http://localhost:3001/proxy/unrank", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(body),
+                    body: JSON.stringify({
+                      key,
+                      pool: poolId,
+                      song: formattedId,
+                    }),
                   });
                   count++;
                 }
@@ -490,42 +545,45 @@ const SongList: React.FC<SongListProps> = ({ poolId }) => {
           </button>
         </div>
       )}
-      {/* Edit button above song list, right-aligned */}
-      <div className="flex w-full justify-end mb-4">
-        <button
-          className={`px-4 py-2 rounded font-semibold transition ${
-            editMode
-              ? "bg-cyan-800 text-white"
-              : "bg-neutral-700 text-neutral-200 hover:bg-neutral-600"
-          }`}
-          onClick={() => setEditMode((v) => !v)}
-        >
-          {editMode ? "Exit Edit Mode" : "Edit"}
-        </button>
-      </div>
-
       {/* Display BeatSaver SongCards */}
-      {!loading && bsSongs.length > 0 && poolId === "funny_haha_pauls" && (
+      {!loading &&
+        bsSongs.length > 0 &&
+        poolId === "funny_haha_pauls" &&
         renderFunnyHahaPaulsSongs(
           bsSongs,
           starRatingMap,
           poolId,
           selectedDiffs,
           toggleDiffSelection,
-          editMode
-        )
-      )}
+          editMode,
+          setSongSelection,
+        )}
       {!loading && bsSongs.length > 0 && poolId !== "funny_haha_pauls" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {bsSongs.map((song) => (
             <SongCard
               key={song.versions?.[0]?.hash || song.id}
               song={song}
-              starRatings={starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}}
+              starRatings={
+                starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}
+              }
               poolId={poolId}
-              selectedDiffs={selectedDiffs[song.versions?.[0]?.hash?.toUpperCase()] || {}}
+              selectedDiffs={
+                selectedDiffs[song.versions?.[0]?.hash?.toUpperCase()] || {}
+              }
               onToggleDiff={(characteristic, difficulty) =>
-                toggleDiffSelection(song.versions?.[0]?.hash?.toUpperCase(), characteristic, difficulty)
+                toggleDiffSelection(
+                  song.versions?.[0]?.hash?.toUpperCase(),
+                  characteristic,
+                  difficulty,
+                )
+              }
+              onToggleAllDiffs={(select, diffs) =>
+                setSongSelection(
+                  song.versions?.[0]?.hash?.toUpperCase(),
+                  select,
+                  diffs,
+                )
               }
               editMode={editMode}
             />

@@ -80,6 +80,14 @@ public class HitbloqProxyController {
         return proxyPost("pools/set_automatic", requestBody);
     }
 
+    @GetMapping("/ladder/{pool_id}/players/{page}")
+    public ResponseEntity<?> ladderPlayers(
+        @PathVariable("pool_id") String poolId,
+        @PathVariable("page") String page
+    ) throws IOException, InterruptedException {
+        return proxyGet("ladder/%s/players/%s".formatted(poolId, page));
+    }
+
     private ResponseEntity<?> proxyPost(String hitbloqPath, String requestBody) throws IOException, InterruptedException {
         URI url = HITBLOQ_API_BASE_URL.resolve(hitbloqPath);
         log.info("Proxying: POST {} {}", url, requestBody);
