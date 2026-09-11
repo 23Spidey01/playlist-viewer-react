@@ -103,7 +103,6 @@ const SongCard: React.FC<SongCardProps> = ({
                 src={characteristicIcons[characteristic]}
                 alt={characteristic}
                 className="w-[18px] h-[18px] opacity-85"
-                style={{ imageRendering: "pixelated" }}
               />
             ) : (
               <span className="pixel-font text-[10px] text-cyan-200">

@@ -68,7 +68,7 @@ const PoolHeader: React.FC<PoolHeaderProps> = ({
           RANKED DIFFS <b>{rankedDiffs}</b>
         </span>
         <span className="pixel-stat">
-          ON BEATSAVER <b>{foundOnBeatSaver}</b>
+          FOUND ON BEATSAVER <b>{foundOnBeatSaver}</b>
         </span>
         {missingCount > 0 && (
           <span className="pixel-stat warn">
@@ -117,7 +117,7 @@ const PoolHeader: React.FC<PoolHeaderProps> = ({
               {String(l.rank).padStart(2, "0")}
             </span>
             <span className="name">{l.name}</span>
-            <span className="cr">{l.cr.toFixed(2).toLocaleString()}</span>
+            <span className="cr">{l.cr.toFixed(2).toLocaleString()}cr</span>
           </div>
         ))}
 

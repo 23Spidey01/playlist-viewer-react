@@ -22,6 +22,7 @@
      10. Pool header (banner + leaderboard)
      11. Song card internals (diff block, footer, difficulty colors,
          edit-mode selection)
+     12. Missing-songs panel
 
    Class names are shared across components (SongCard, PoolCard,
    PoolHeader, App's TopBar/PoolOverview) — check usages before
@@ -103,6 +104,18 @@
   box-shadow:
     inset 2px 2px 0 rgba(255, 255, 255, 0.25),
     inset -2px -2px 0 rgba(0, 0, 0, 0.35),
+    0 0 0 3px var(--px-outline),
+    0 5px 0 var(--px-outline);
+}
+
+/* Destructive variant, same shape, red instead of gold/cyan
+   (e.g. "Unrank All Selected"). */
+.pixel-btn.danger {
+  background: #dc2626;
+  color: #fff0f0;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.3),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.4),
     0 0 0 3px var(--px-outline),
     0 5px 0 var(--px-outline);
 }
@@ -341,12 +354,33 @@
 
 /* Used for the "NOT FOUND" counter — draws attention without being a
    full error color. */
+/* Missing-on-BeatSaver counter: same dark chip as the other stats, but
+   the text and outline blink bright red so it still reads as an
+   urgent warning instead of just another button. */
 .pixel-stat.warn {
-  color: var(--px-gold);
-  box-shadow: 0 0 0 2px rgba(243, 197, 66, 0.35);
+  background: var(--px-outline);
+  color: #ff3b3b;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px #dc2626;
+  animation: pixel-warn-pulse 1.4s steps(1) infinite;
 }
 
-/* The "show"/"hide" toggle inside a .pixel-stat.warn chip. */
+.pixel-stat.warn b {
+  color: inherit;
+}
+
+@keyframes pixel-warn-pulse {
+  0%, 49% {
+    color: #ff3b3b;
+    box-shadow: 0 0 0 2px #dc2626;
+  }
+  50%, 100% {
+    color: #ffb3b3;
+    box-shadow: 0 0 0 2px #ff8080;
+  }
+}
+
+/* The "show"/"hide" toggle inside a .pixel-stat chip. */
 .pixel-stat-link {
   background: none;
   border: none;
@@ -423,10 +457,11 @@
     0 4px 0 var(--px-outline);
 }
 
-/* Cover image (song/pool thumbnail): pixelated scaling + hard outline
-   instead of rounded corners + border. */
+/* Cover image (song/pool thumbnail): hard outline instead of rounded
+   corners + border. No image-rendering override here — these are real
+   cover art photos, not pixel-art assets, and forcing "pixelated"
+   makes them look blocky when scaled. */
 .pixel-cover {
-  image-rendering: pixelated;
   box-shadow: 0 0 0 3px var(--px-outline);
 }
 
@@ -506,7 +541,6 @@
   background-color: var(--px-outline);
   background-size: cover;
   background-position: center;
-  image-rendering: pixelated;
   box-shadow: inset -4px 0 0 var(--px-outline);
 }
 
@@ -619,4 +653,66 @@
    swap happens in SongCard.tsx's onClick handler. */
 .pixel-card-edit {
   cursor: copy;
+}
+
+/* == 12. Missing-songs panel ===================================== */
+/* The collapsible panel under the pool header, toggled by the
+   NOT FOUND stat's "show" link — see SongList.tsx. */
+
+/* Same bevel treatment as .pixel-card, so it reads as part of the
+   design system instead of a leftover plain rounded box. */
+.pixel-missing-panel {
+  background: var(--px-bg);
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 6px 0 var(--px-outline);
+}
+
+/* Short explainer for why maps end up in this list — boxed like a
+   note instead of a floating paragraph, so it reads as part of the
+   panel rather than a leftover description. */
+.pixel-missing-note {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  background: var(--px-outline);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #9aa3ba;
+}
+
+.pixel-missing-note b {
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  color: var(--px-gold);
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+/* Scrollable list of missing song ids — capped height so a pool with
+   a lot of missing maps doesn't push the rest of the page down. */
+.pixel-missing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 10px 0 14px;
+  padding-right: 4px;
+}
+
+.pixel-missing-row {
+  font-family: monospace;
+  font-size: 11px;
+  color: #ffb3b3;
+  background: var(--px-outline);
+  padding: 5px 9px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
 }

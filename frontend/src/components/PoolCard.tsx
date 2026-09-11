@@ -46,7 +46,6 @@ const PoolCard: React.FC<{ pool: PoolDetailed }> = ({ pool }) => {
             src={hero}
             alt=""
             className="w-full h-full object-cover"
-            style={{ imageRendering: "pixelated" }}
             onError={() => setHeroBroken(true)}
           />
         ) : (

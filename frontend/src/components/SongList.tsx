@@ -35,6 +35,14 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   // State for edit mode
   const [editMode, setEditMode] = useState(false);
 
+  // Leaving edit mode clears any selected difficulties
+  const toggleEditMode = () => {
+    setEditMode((v) => {
+      if (v) setSelectedDiffs({});
+      return !v;
+    });
+  };
+
   // Leaderboard data for the pool header
   const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
 
@@ -426,7 +434,7 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
           }
           onRecalculateCR={handleRecalculateCR}
           editMode={editMode}
-          onToggleEditMode={() => setEditMode((v) => !v)}
+          onToggleEditMode={toggleEditMode}
           leaders={leaders}
         />
       )}
@@ -450,7 +458,7 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
             Set Star Rating
           </button>
           <button
-            className="pixel-btn secondary disabled:opacity-40"
+            className="pixel-btn danger disabled:opacity-40"
             disabled={!allSelectedAreRanked}
             onClick={unrankAllSelected}
           >
@@ -466,10 +474,10 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
       )}
       {/* List missing songs (collapsible, toggled from the header) */}
       {!loading && missingHashes.length > 0 && showMissing && (
-        <div className="bg-neutral-900/95 border border-neutral-700 p-3 mb-6 text-orange-400 text-xs">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="pixel-font text-[10px] text-orange-300">
-              NOT FOUND ON BEATSAVER
+        <div className="pixel-missing-panel">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="pixel-font text-[10px] text-red-400">
+              {missingHashes.length} SONGS NOT FOUND ON BEATSAVER
             </span>
             <button
               className="pixel-tab"
@@ -480,7 +488,15 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
               COPY HASHES
             </button>
           </div>
-          <ul className="list-disc pl-6">
+          <div className="pixel-missing-note">
+            <b>i</b>
+            <span>
+              These maps were most likely taken down by their mapper on
+              BeatSaver. Anyone who hadn't already downloaded them before
+              the takedown can no longer download or play them.
+            </span>
+          </div>
+          <div className="pixel-missing-list">
             {missingHashes.map((hash) => {
               const missingSongs = songs.filter((song) =>
                 song.song_id.startsWith(hash),
@@ -493,15 +509,15 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
                 const characteristic = charMap[charShort] || charShort;
                 const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
                 return (
-                  <li key={song.song_id}>
-                    <span className="font-mono">{formattedId}</span>
-                  </li>
+                  <div key={song.song_id} className="pixel-missing-row">
+                    {formattedId}
+                  </div>
                 );
               });
             })}
-          </ul>
+          </div>
           <button
-            className="mt-4 px-3 py-2 bg-red-700 text-white rounded hover:bg-red-800 font-semibold"
+            className="pixel-btn danger"
             onClick={async () => {
               const key = prompt("Please enter the API key for this pool:");
               if (!key) return alert("No API key entered.");
@@ -541,7 +557,7 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
               alert(`${count} Songs sent as unranked!`);
             }}
           >
-            Send All Missing Songs as Unranked
+            Unrank All Missing Songs
           </button>
         </div>
       )}
