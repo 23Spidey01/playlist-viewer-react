@@ -6,6 +6,7 @@ import { useSongPoolCache } from "./useSongPoolCache";
 import { renderFunnyHahaPaulsSongs } from "./PoolFeatures/FunnyHahaPauls";
 import PoolHeader from "./PoolHeader";
 import type { PoolDetailed, LeaderEntry } from "./PoolHeader";
+import { askApiKey, confirmDialog, promptText } from "./dialogStore";
 
 interface SongListProps {
   poolId: string;
@@ -28,6 +29,13 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   const [bsSongs, setBsSongs] = useState<BSSongInfo[]>([]);
   // Loading indicator
   const [loading, setLoading] = useState(false);
+  // What the loading indicator is currently doing, and its progress
+  // (null while the total isn't known yet, e.g. paging through Hitbloq)
+  const [loadStage, setLoadStage] = useState("");
+  const [loadProgress, setLoadProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   // Map for star ratings: hash -> characteristic -> difficulty -> stars
   const [starRatingMap, setStarRatingMap] = useState<
     Record<string, Record<string, Record<string, number>>>
@@ -82,9 +90,11 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   }, [poolId]);
 
   const handleRecalculateCR = async () => {
-    const key = prompt("Please enter the API key for this pool:");
+    const key = await askApiKey();
     if (!key) return alert("No API key entered.");
     setLoading(true);
+    setLoadStage("Recalculating CR...");
+    setLoadProgress(null);
     const res = await fetch("http://localhost:3001/proxy/recalculate_cr", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -111,11 +121,16 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
       return;
     }
     setLoading(true);
+    setLoadStage("Loading ranked songs from Hitbloq...");
+    setLoadProgress(null);
 
     const fetchAllSongs = async () => {
       let page = 0;
       let allSongs: DetailedSong[] = [];
       while (true) {
+        setLoadStage(
+          `Loading ranked songs from Hitbloq (page ${page + 1})...`,
+        );
         const res = await fetch(
           `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`,
         );
@@ -133,6 +148,8 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
           allSongs.map((song) => song.song_id.split("_")[0].toLowerCase()),
         ),
       );
+      setLoadStage("Fetching song data from BeatSaver...");
+      setLoadProgress({ current: 0, total: hashes.length });
       const loadedBsSongs = await fetchBeatSaverSongs(hashes);
 
       setBsSongs(loadedBsSongs);
@@ -163,6 +180,10 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
       const data = await res.json();
       const songsArray = Object.values(data).filter(Boolean) as BSSongInfo[];
       results.push(...songsArray);
+      setLoadProgress({
+        current: Math.min(i + CHUNK_SIZE, hashes.length),
+        total: hashes.length,
+      });
       await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
     }
     return results;
@@ -318,7 +339,7 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   // Rank every selected difficulty that is not ranked yet
   const rankAllSelected = async () => {
     if (!allSelectedAreUnranked) return;
-    const key = prompt("API Key?");
+    const key = await askApiKey();
     if (!key) return;
     let count = 0;
     for (const hash in selectedDiffs) {
@@ -348,7 +369,7 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   // Unrank every selected difficulty (only allowed when all are currently ranked)
   const unrankAllSelected = async () => {
     if (!allSelectedAreRanked) return;
-    const key = prompt("API Key?");
+    const key = await askApiKey();
     if (!key) return;
     let count = 0;
     for (const hash in selectedDiffs) {
@@ -393,12 +414,12 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
     }
 
     if (unrankedDiffs.length > 0) {
-      const proceed = window.confirm(
-        "Your selection contains difficulties that are not ranked yet.\n" +
-          "Should these be ranked first and then the star rating be set?",
+      const proceed = await confirmDialog(
+        "Your selection contains difficulties that are not ranked yet. Should these be ranked first and then the star rating be set?",
+        { okLabel: "Rank them first", cancelLabel: "Cancel" },
       );
       if (!proceed) return;
-      const rankKey = prompt("API Key?");
+      const rankKey = await askApiKey();
       if (!rankKey) return;
       for (const { hash, characteristic, difficulty } of unrankedDiffs) {
         const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
@@ -422,14 +443,18 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
       );
     }
 
-    const key = prompt("API Key?");
+    const key = await askApiKey();
     if (!key) return;
-    const isAutomatic = window.confirm(
-      "Calculate star rating automatically?\n\nOK = Automatic\nCancel = Manual",
+    const isAutomatic = await confirmDialog(
+      "Calculate star rating automatically, or set it manually?",
+      { okLabel: "Automatic", cancelLabel: "Manual" },
     );
     let manualRating: number | undefined = undefined;
     if (!isAutomatic) {
-      let rating = prompt("What star rating to set for all? (e.g. 8.5)");
+      let rating = await promptText(
+        "What star rating should be set for all selected difficulties?",
+        { placeholder: "e.g. 8.5" },
+      );
       if (!rating) return alert("No star rating entered.");
       rating = rating.replace(",", ".");
       manualRating = parseFloat(rating);
@@ -474,8 +499,37 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
 
   return (
     <div>
-      {/* Loading indicator */}
-      {loading && <p className="text-cyan-400">Loading pool...</p>}
+      {/* Loading indicator: what's happening + a progress bar */}
+      {loading && (
+        <div className="pixel-loading">
+          <span className="pixel-font text-[10px] text-cyan-300">
+            {loadStage || "Loading pool..."}
+          </span>
+          <div className={`pixel-progress${loadProgress ? "" : " indeterminate"}`}>
+            <div
+              className="pixel-progress-fill"
+              style={
+                loadProgress
+                  ? {
+                      width: `${Math.min(
+                        100,
+                        Math.round(
+                          (loadProgress.current / Math.max(loadProgress.total, 1)) *
+                            100,
+                        ),
+                      )}%`,
+                    }
+                  : undefined
+              }
+            />
+          </div>
+          {loadProgress && (
+            <span className="text-[11px] text-neutral-500">
+              {loadProgress.current} / {loadProgress.total}
+            </span>
+          )}
+        </div>
+      )}
       {!loading && (
         <PoolHeader
           pool={pool}
@@ -576,16 +630,23 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
           <button
             className="pixel-btn danger"
             onClick={async () => {
-              const key = prompt("Please enter the API key for this pool:");
+              const key = await askApiKey();
               if (!key) return alert("No API key entered.");
-              if (
-                !confirm(
-                  "Are you sure you want to send all missing songs as unranked?",
-                )
-              )
-                return;
+              const proceed = await confirmDialog(
+                "Are you sure you want to send all missing songs as unranked?",
+                { okLabel: "Unrank All", cancelLabel: "Cancel", danger: true },
+              );
+              if (!proceed) return;
 
               setLoading(true);
+              setLoadStage("Unranking missing songs...");
+              const totalMissing = missingHashes.reduce(
+                (sum, hash) =>
+                  sum +
+                  songs.filter((song) => song.song_id.startsWith(hash)).length,
+                0,
+              );
+              setLoadProgress({ current: 0, total: totalMissing });
               let count = 0;
               for (const hash of missingHashes) {
                 const missingSongs = songs.filter((song) =>
@@ -608,6 +669,7 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
                     }),
                   });
                   count++;
+                  setLoadProgress({ current: count, total: totalMissing });
                 }
               }
               setLoading(false);

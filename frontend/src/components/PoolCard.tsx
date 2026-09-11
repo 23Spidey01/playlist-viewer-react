@@ -36,16 +36,19 @@ const PoolCard: React.FC<{ pool: PoolDetailed }> = ({ pool }) => {
       className="pixel-pool-card cursor-pointer h-full flex flex-col"
       onClick={() => navigate(`/pool/${pool.id}`)}
     >
-      {/* Header: banner as the image area, title overlaid on top */}
+      {/* Header: banner as the image area, title overlaid on top.
+          Every banner is stretched (not cropped) to exactly 5:1 —
+          matching Hitbloq's default 600x120 — so pools that upload a
+          different-shaped image still line up with the ones that do. */}
       <div
         className="relative w-full overflow-hidden"
-        style={{ aspectRatio: "600 / 150", boxShadow: "inset 0 -4px 0 var(--px-outline)" }}
+        style={{ aspectRatio: "5 / 1", boxShadow: "inset 0 -4px 0 var(--px-outline)" }}
       >
         {hero ? (
           <img
             src={hero}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-full object-fill"
             onError={() => setHeroBroken(true)}
           />
         ) : (

@@ -12,6 +12,7 @@ import { SongPoolProvider } from "./components/SongPoolProvider";
 import RankNewMaps from "./components/RankNewMaps";
 import logo from "./assets/Logo.png";
 import PoolCard from "./components/PoolCard";
+import { DialogHost } from "./components/Dialog";
 import "./components/pixel-ui.css";
 
 interface PoolDetailed {
@@ -206,6 +207,7 @@ const App: React.FC = () => {
 
   return (
     <SongPoolProvider>
+      <DialogHost />
       <Router>
         <div className="min-h-screen pixel-bg font-sans">
           <Routes>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { askApiKey } from "./dialogStore";
 
 const parseBeatSaverId = (urlOrId: string) => {
   // Extract map ID from a BeatSaver link or return it directly
@@ -38,7 +39,7 @@ const RankNewMaps: React.FC = () => {
 
   // Rank all selected difficulties
   const handleBatchRank = async () => {
-    const key = prompt("Please enter the API key for this pool:");
+    const key = await askApiKey();
     if (!key) return alert("No API key entered.");
     let count = 0;
     for (const song of songs) {

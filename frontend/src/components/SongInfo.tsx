@@ -8,6 +8,7 @@ import { characteristicLabels, characteristicIcons } from "./types";
 import logo from "../assets/Logo.png";
 import beatsaverIcon from "../assets/Icons/beatsaver.png";
 import beatleaderIcon from "../assets/Icons/beatleader.svg";
+import { askApiKey, confirmDialog, promptText } from "./dialogStore";
 import "./pixel-ui.css";
 
 function formatDuration(seconds: number) {
@@ -50,8 +51,8 @@ const SongInfo: React.FC = () => {
 
   // ---- API handlers (unchanged from the previous version) ----------
 
-  const askKey = () => {
-    const key = prompt("Please enter the API key for this pool:");
+  const askKey = async () => {
+    const key = await askApiKey();
     if (!key) alert("No API key entered.");
     return key;
   };
@@ -64,8 +65,9 @@ const SongInfo: React.FC = () => {
     });
 
   const setStarRating = async (key: string, formattedId: string) => {
-    const isAutomatic = window.confirm(
-      "Calculate star rating automatically?\n\nOK = Automatic\nCancel = Manual",
+    const isAutomatic = await confirmDialog(
+      "Calculate star rating automatically, or set it manually?",
+      { okLabel: "Automatic", cancelLabel: "Manual" },
     );
     if (isAutomatic) {
       const res = await fetch("http://localhost:3001/proxy/set_automatic", {
@@ -75,7 +77,9 @@ const SongInfo: React.FC = () => {
       });
       return res.json();
     }
-    let rating = prompt("What star rating should be set? (e.g. 8.5)");
+    let rating = await promptText("What star rating should be set?", {
+      placeholder: "e.g. 8.5",
+    });
     if (!rating) {
       alert("No star rating entered.");
       return null;
@@ -103,7 +107,7 @@ const SongInfo: React.FC = () => {
     const handleRank = async () => {
       if (!poolId || !songHash) return;
       busy();
-      const key = askKey();
+      const key = await askKey();
       if (!key) return done();
       const resRank = await fetch("http://localhost:3001/proxy/rank", {
         method: "POST",
@@ -130,7 +134,7 @@ const SongInfo: React.FC = () => {
     const handleUnrank = async () => {
       if (!poolId || !songHash) return;
       busy();
-      const key = askKey();
+      const key = await askKey();
       if (!key) return done();
       const res = await fetch("http://localhost:3001/proxy/unrank", {
         method: "POST",
@@ -151,7 +155,7 @@ const SongInfo: React.FC = () => {
     const handleSetStarRating = async () => {
       if (!poolId || !songHash) return;
       busy();
-      const key = askKey();
+      const key = await askKey();
       if (!key) return done();
       const resultSet = await setStarRating(key, formattedId);
       if (!resultSet) return done();
