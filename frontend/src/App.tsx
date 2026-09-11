@@ -136,13 +136,43 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   );
 };
 
-// Wrapper for SongList, gets Pool ID from URL
+// Wrapper for SongList, gets Pool ID from URL. Brings its own topbar
+// (breadcrumb + "back to all pools" link), same recipe as SongInfo's
+// topbar, so it skips SubPageShell's plain logo bar.
 const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   const { id } = useParams<{ id: string }>();
   const pool = pools.find((p) => p.id === id);
-  if (!id || !pool)
-    return <div className="text-orange-400">Pool not found.</div>;
-  return <SongList poolId={id} pool={pool} />;
+
+  return (
+    <>
+      <div className="pixel-topbar">
+        <Link to="/" className="pixel-icon-btn shrink-0">
+          <img
+            src={logo}
+            alt="Hitbloq Pool Manager"
+            className="h-9 w-auto"
+            style={{ imageRendering: "pixelated" }}
+          />
+        </Link>
+        {pool && (
+          <span className="text-xs text-[#6a7690]">
+            / <span className="text-[#b7c0d6]">{pool.id}</span>
+          </span>
+        )}
+        <div className="flex-1" />
+        <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
+          ◂ ALL POOLS
+        </Link>
+      </div>
+      <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">
+        {!id || !pool ? (
+          <div className="text-orange-400">Pool not found.</div>
+        ) : (
+          <SongList poolId={id} pool={pool} />
+        )}
+      </div>
+    </>
+  );
 };
 
 // Header for all non-overview pages (the overview brings its own topbar)
@@ -180,22 +210,10 @@ const App: React.FC = () => {
         <div className="min-h-screen pixel-bg font-sans">
           <Routes>
             <Route path="/" element={<PoolOverview pools={pools} />} />
-            <Route
-              path="/pool/:id"
-              element={
-                <SubPageShell>
-                  <PoolSongListPage pools={pools} />
-                </SubPageShell>
-              }
-            />
-            <Route
-              path="/song/:id"
-              element={
-                <SubPageShell>
-                  <SongInfo />
-                </SubPageShell>
-              }
-            />
+            <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
+            {/* SongInfo brings its own topbar (with breadcrumb + back
+                link) and page container, so it skips SubPageShell. */}
+            <Route path="/song/:id" element={<SongInfo />} />
             <Route
               path="/pool/:poolId/rank-new"
               element={

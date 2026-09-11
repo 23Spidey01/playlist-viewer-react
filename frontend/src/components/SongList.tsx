@@ -12,6 +12,15 @@ interface SongListProps {
   pool: PoolDetailed;
 }
 
+type SongSortKey = "stars" | "name" | "newest" | "diffs";
+
+const SONG_SORTS: { key: SongSortKey; label: string }[] = [
+  { key: "stars", label: "STAR RATING" },
+  { key: "name", label: "A–Z" },
+  { key: "newest", label: "NEWEST" },
+  { key: "diffs", label: "MOST DIFFS" },
+];
+
 const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   // State for all songs from Hitbloq (ranked_list_detailed)
   const [songs, setSongs] = useState<DetailedSong[]>([]);
@@ -34,6 +43,10 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
 
   // State for edit mode
   const [editMode, setEditMode] = useState(false);
+
+  // State for the song search + sort controls
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SongSortKey>("stars");
 
   // Leaving edit mode clears any selected difficulties
   const toggleEditMode = () => {
@@ -187,6 +200,48 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
   const missingHashes = Array.from(new Set(hitbloqHashes)).filter(
     (hash) => !beatsaverHashes.includes(hash),
   );
+
+  // Highest star rating among a song's ranked difficulties (-Infinity
+  // for a song with none, so unranked songs sort to the bottom).
+  const getMaxStars = (song: BSSongInfo) => {
+    const hash = song.versions?.[0]?.hash?.toUpperCase();
+    const charStars = hash ? starRatingMap[hash] : undefined;
+    if (!charStars) return -Infinity;
+    let max = -Infinity;
+    Object.values(charStars).forEach((diffs) => {
+      Object.values(diffs).forEach((star) => {
+        if (star > max) max = star;
+      });
+    });
+    return max;
+  };
+
+  // Search + sort applied on top of the full BeatSaver song list —
+  // missingHashes/counts above stay based on the unfiltered data.
+  const visibleSongs = bsSongs
+    .filter((song) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        song.metadata.songName.toLowerCase().includes(q) ||
+        song.metadata.songAuthorName.toLowerCase().includes(q) ||
+        song.uploader.name.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (sort === "stars") {
+        return getMaxStars(b) - getMaxStars(a);
+      }
+      if (sort === "newest") {
+        return new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime();
+      }
+      if (sort === "diffs") {
+        const aDiffs = a.versions?.[0]?.diffs?.length ?? 0;
+        const bDiffs = b.versions?.[0]?.diffs?.length ?? 0;
+        return bDiffs - aDiffs;
+      }
+      return a.metadata.songName.localeCompare(b.metadata.songName);
+    });
 
   // Toggle difficulty selection
   const toggleDiffSelection = (
@@ -439,33 +494,35 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
         />
       )}
       {/* Actions for the current difficulty selection (edit mode) */}
-      {!loading && selectedCount > 0 && (
+      {!loading && editMode && (
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 bg-neutral-900/95 border border-neutral-700 p-3 mb-6 shadow-lg">
           <span className="pixel-font text-[10px] text-cyan-300 mr-1">
             {selectedCount} SELECTED
           </span>
           <button
             className="pixel-btn disabled:opacity-40"
-            disabled={!allSelectedAreUnranked}
+            disabled={selectedCount === 0 || !allSelectedAreUnranked}
             onClick={rankAllSelected}
           >
             Rank All Selected
           </button>
           <button
-            className="pixel-btn secondary"
+            className="pixel-btn secondary disabled:opacity-40"
+            disabled={selectedCount === 0}
             onClick={setStarRatingForSelection}
           >
             Set Star Rating
           </button>
           <button
             className="pixel-btn danger disabled:opacity-40"
-            disabled={!allSelectedAreRanked}
+            disabled={selectedCount === 0 || !allSelectedAreRanked}
             onClick={unrankAllSelected}
           >
             Unrank All Selected
           </button>
           <button
-            className="pixel-tab ml-auto"
+            className="pixel-tab ml-auto disabled:opacity-40"
+            disabled={selectedCount === 0}
             onClick={() => setSelectedDiffs({})}
           >
             CLEAR
@@ -561,12 +618,37 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
           </button>
         </div>
       )}
+      {/* Search + sort for the song list below */}
+      {!loading && bsSongs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="pixel-searchbox flex-1 min-w-[220px]">
+            <span className="prompt">&gt;</span>
+            <input
+              type="text"
+              placeholder="Search songs, mappers..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="pixel-tabs">
+            {SONG_SORTS.map((s) => (
+              <button
+                key={s.key}
+                className={`pixel-tab${sort === s.key ? " active" : ""}`}
+                onClick={() => setSort(s.key)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Display BeatSaver SongCards */}
       {!loading &&
-        bsSongs.length > 0 &&
+        visibleSongs.length > 0 &&
         poolId === "funny_haha_pauls" &&
         renderFunnyHahaPaulsSongs(
-          bsSongs,
+          visibleSongs,
           starRatingMap,
           poolId,
           selectedDiffs,
@@ -574,9 +656,9 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
           editMode,
           setSongSelection,
         )}
-      {!loading && bsSongs.length > 0 && poolId !== "funny_haha_pauls" && (
+      {!loading && visibleSongs.length > 0 && poolId !== "funny_haha_pauls" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {bsSongs.map((song) => (
+          {visibleSongs.map((song) => (
             <SongCard
               key={song.versions?.[0]?.hash || song.id}
               song={song}
@@ -605,6 +687,10 @@ const SongList: React.FC<SongListProps> = ({ poolId, pool }) => {
             />
           ))}
         </div>
+      )}
+      {/* Note if the search filtered out everything */}
+      {!loading && bsSongs.length > 0 && visibleSongs.length === 0 && (
+        <p className="text-orange-400">No songs match your search.</p>
       )}
       {/* Note if no songs were found */}
       {!loading && bsSongs.length === 0 && (

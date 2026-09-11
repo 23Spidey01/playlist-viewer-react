@@ -23,10 +23,12 @@
      11. Song card internals (diff block, footer, difficulty colors,
          edit-mode selection)
      12. Missing-songs panel
+     13. Song info page (hero links, characteristic cards,
+         difficulty tiles, mini action buttons)
 
    Class names are shared across components (SongCard, PoolCard,
-   PoolHeader, App's TopBar/PoolOverview) — check usages before
-   renaming or removing anything here.
+   PoolHeader, SongInfo, App's TopBar/PoolOverview) — check usages
+   before renaming or removing anything here.
    ============================================================ */
 
 @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
@@ -715,4 +717,198 @@
   background: var(--px-outline);
   padding: 5px 9px;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+/* == 13. Song info page =========================================== */
+/* See SongInfo.tsx. Reuses .pixel-topbar, .pixel-tab,
+   .pixel-pool-header* and .pixel-stat from earlier sections. */
+
+/* Third column in the song hero (next to cover + metadata), playing
+   the same role .pixel-pool-header-lb plays on the pool header. */
+.pixel-song-links {
+  width: 150px;
+  flex-shrink: 0;
+  padding: 13px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--px-outline);
+  box-shadow: inset 4px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.pixel-song-links a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #eafcff;
+  text-decoration: none;
+  background: var(--px-bg);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+.pixel-song-links a:hover {
+  color: var(--px-cyan);
+}
+
+.pixel-song-links img {
+  width: 18px;
+  height: 18px;
+}
+
+/* Dashed divider next to a section label, e.g. "DIFFICULTIES". */
+.pixel-rule {
+  flex: 1;
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--px-bg) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+/* One card per characteristic (Standard, Lawless, ...), each holding
+   a grid of difficulty tiles. */
+.pixel-char-card {
+  background: var(--px-bg);
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 6px 0 var(--px-outline);
+}
+
+.pixel-char-card > .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  background: var(--px-outline);
+}
+
+.pixel-char-card > .head img {
+  width: 20px;
+  height: 20px;
+}
+
+.pixel-char-card > .body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+/* Single difficulty tile inside a characteristic card. */
+.pixel-diff-tile {
+  padding: 11px 13px 12px;
+  background: #191d33; /* unranked: muted */
+  box-shadow:
+    inset 6px 0 0 #1a6f96, /* left edge color, overridden per difficulty below */
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 3px var(--px-outline);
+}
+
+/* Left-edge accent color per difficulty (unranked tiles only). */
+.pixel-diff-tile.diff-Easy { box-shadow: inset 6px 0 0 #15803d, inset -2px -2px 0 rgba(0,0,0,.3), 0 0 0 3px var(--px-outline); }
+.pixel-diff-tile.diff-Normal { box-shadow: inset 6px 0 0 #1d4ed8, inset -2px -2px 0 rgba(0,0,0,.3), 0 0 0 3px var(--px-outline); }
+.pixel-diff-tile.diff-Hard { box-shadow: inset 6px 0 0 #c2410c, inset -2px -2px 0 rgba(0,0,0,.3), 0 0 0 3px var(--px-outline); }
+.pixel-diff-tile.diff-Expert { box-shadow: inset 6px 0 0 #b91c1c, inset -2px -2px 0 rgba(0,0,0,.3), 0 0 0 3px var(--px-outline); }
+.pixel-diff-tile.diff-ExpertPlus { box-shadow: inset 6px 0 0 #6d28d9, inset -2px -2px 0 rgba(0,0,0,.3), 0 0 0 3px var(--px-outline); }
+
+/* Ranked: solid gold panel with a gold outline ring instead of a
+   left-edge accent, so it stands out from the unranked grid. */
+.pixel-diff-tile.ranked {
+  background: #7c5a0e;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.22),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 3px var(--px-outline),
+    0 0 0 6px var(--px-gold);
+}
+
+.pixel-diff-tile .row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.pixel-diff-tile .label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #b7c0d6;
+}
+
+/* Bright tints so the difficulty name stays legible on the dark
+   unranked background. */
+.pixel-diff-tile.diff-Easy .label { color: #4ade80; }
+.pixel-diff-tile.diff-Normal .label { color: #60a5fa; }
+.pixel-diff-tile.diff-Hard .label { color: #fb923c; }
+.pixel-diff-tile.diff-Expert .label { color: #f87171; }
+.pixel-diff-tile.diff-ExpertPlus .label { color: #a78bfa; }
+.pixel-diff-tile.ranked .label { color: #ffffff; }
+
+.pixel-diff-tile .stars {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffe9a8;
+}
+
+.pixel-diff-tile .actions {
+  margin-left: auto;
+  display: flex;
+  gap: 7px;
+}
+
+.pixel-diff-tile .stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 11px;
+  padding-top: 10px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #8b95ad;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.28);
+}
+
+.pixel-diff-tile .stats b {
+  color: #cbd5e8;
+  font-weight: 700;
+}
+
+.pixel-diff-tile.ranked .stats { color: #ffffff; }
+.pixel-diff-tile.ranked .stats b { color: #ffffff; }
+
+/* Small Rank / Unrank / Set Stars buttons inside a difficulty tile —
+   same bevel recipe as .pixel-btn, just smaller. */
+.pixel-mini {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border: none;
+  cursor: pointer;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.3),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px var(--px-outline);
+  transition: filter 60ms steps(1);
+}
+
+.pixel-mini:hover { filter: brightness(1.1); }
+.pixel-mini:disabled { opacity: 0.5; cursor: default; }
+
+/* Colors match the equivalent selection-bar buttons on the pool page
+   (.pixel-btn / .pixel-btn.secondary / .pixel-btn.danger). */
+.pixel-mini.warn {   /* Rank */
+  background: var(--px-gold);
+  color: var(--px-outline);
+}
+.pixel-mini.danger { /* Unrank */
+  background: #dc2626;
+  color: #fff0f0;
+}
+.pixel-mini.info {   /* Set Stars */
+  background: var(--px-cyan-dark);
+  color: #eafcff;
 }
