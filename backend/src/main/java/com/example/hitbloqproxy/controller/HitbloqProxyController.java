@@ -90,7 +90,7 @@ public class HitbloqProxyController {
 
     private ResponseEntity<?> proxyPost(String hitbloqPath, String requestBody) throws IOException, InterruptedException {
         URI url = HITBLOQ_API_BASE_URL.resolve(hitbloqPath);
-        log.info("Proxying: POST {} {}", url, requestBody);
+        // log.info("Proxying: POST {} {}", url, requestBody);
 
         HttpRequest request = HttpRequest.newBuilder(url)
                 .timeout(Duration.ofSeconds(30))
@@ -105,7 +105,7 @@ public class HitbloqProxyController {
 
     private ResponseEntity<?> proxyGet(String hitbloqPath) throws IOException, InterruptedException {
         URI url = HITBLOQ_API_BASE_URL.resolve(hitbloqPath);
-        log.info("Proxying: GET {}", url);
+        // log.info("Proxying: GET {}", url);
 
         HttpRequest request = HttpRequest.newBuilder(url)
                 .timeout(Duration.ofSeconds(30))
@@ -123,7 +123,7 @@ public class HitbloqProxyController {
      * - If it is not valid JSON, return HTTP 500 with the raw text body.
      */
     private ResponseEntity<?> parseLikeOriginalExpressProxy(String text) {
-        log.info("Hitbloq Response: {}", text);
+        // log.info("Hitbloq Response: {}", text);
 
         try {
             JsonNode json = objectMapper.readTree(text);
