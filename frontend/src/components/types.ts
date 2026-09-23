@@ -175,6 +175,14 @@ export interface SongPoolCache {
   [poolId: string]: {
     songs: DetailedSong[];
     bsSongs: BSSongInfo[];
+    // Which hash was actually queried to resolve each bsSongs entry —
+    // needed because BeatSaver's hash lookup always resolves to a
+    // map's *current* version data, so a re-upload's old and new hash
+    // can both come back reporting the same versions[0].hash even
+    // though they're two distinct ranked entries. See SongList.tsx's
+    // fetchBeatSaverSongs. Keyed by object reference (each fetched
+    // entry is distinct even when its content matches another's).
+    queryHashByEntry: Map<BSSongInfo, string>;
     starRatingMap: Record<string, Record<string, Record<string, number>>>; // 3 Ebenen!
   };
 }

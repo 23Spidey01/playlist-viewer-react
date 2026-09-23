@@ -122,8 +122,8 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch pb-10">
-          {filtered.map((pool) => (
-            <PoolCard key={pool.id} pool={pool} />
+          {filtered.map((pool, index) => (
+            <PoolCard key={pool.id} pool={pool} index={index} />
           ))}
         </div>
 
@@ -143,6 +143,9 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
 const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   const { id } = useParams<{ id: string }>();
   const pool = pools.find((p) => p.id === id);
+  // Owned here (not inside SongList) so this page's own topbar — the
+  // one with the site logo — can show the "EDIT MODE!!" call-out too.
+  const [editMode, setEditMode] = useState(false);
 
   return (
     <>
@@ -164,34 +167,27 @@ const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
         <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
           ◂ ALL POOLS
         </Link>
+        {editMode && (
+          <div className="pixel-editmode-banner" aria-hidden="true">
+            !EDIT MODE!
+          </div>
+        )}
       </div>
       <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">
         {!id || !pool ? (
           <div className="text-orange-400">Pool not found.</div>
         ) : (
-          <SongList poolId={id} pool={pool} />
+          <SongList
+            poolId={id}
+            pool={pool}
+            editMode={editMode}
+            onToggleEditMode={() => setEditMode((v) => !v)}
+          />
         )}
       </div>
     </>
   );
 };
-
-// Header for all non-overview pages (the overview brings its own topbar)
-const SubPageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <>
-    <div className="pixel-topbar">
-      <Link to="/" className="pixel-icon-btn shrink-0">
-        <img
-          src={logo}
-          alt="Hitbloq Pool Manager"
-          className="h-9 w-auto"
-          style={{ imageRendering: "pixelated" }}
-        />
-      </Link>
-    </div>
-    <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">{children}</div>
-  </>
-);
 
 const App: React.FC = () => {
   const [pools, setPools] = useState<PoolDetailed[]>([]);
@@ -213,17 +209,11 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<PoolOverview pools={pools} />} />
             <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
-            {/* SongInfo brings its own topbar (with breadcrumb + back
-                link) and page container, so it skips SubPageShell. */}
+            {/* SongInfo and RankNewMaps both bring their own topbar
+                (with breadcrumb + back link) and page container, so
+                they skip SubPageShell. */}
             <Route path="/song/:id" element={<SongInfo />} />
-            <Route
-              path="/pool/:poolId/rank-new"
-              element={
-                <SubPageShell>
-                  <RankNewMaps />
-                </SubPageShell>
-              }
-            />
+            <Route path="/pool/:poolId/rank-new" element={<RankNewMaps />} />
           </Routes>
         </div>
       </Router>

@@ -1,15 +1,17 @@
-// dialogStore.ts — pixel-styled replacement for window.prompt()/confirm().
-// Split from Dialog.tsx (which mounts <DialogHost /> and must only
-// export a component, for Fast Refresh) so these plain functions can
-// be imported anywhere:
+// dialogStore.ts — pixel-styled replacement for window.prompt()/
+// confirm()/alert(). Split from Dialog.tsx (which mounts <DialogHost />
+// and must only export a component, for Fast Refresh) so these plain
+// functions can be imported anywhere:
 //   const key = await askApiKey();
 //   const ok = await confirmDialog("Are you sure?");
 //   const isAutomatic = await confirmDialog("Automatic or manual?", {
 //     okLabel: "Automatic", cancelLabel: "Manual",
 //   });
 //   const rating = await promptText("Star rating?", { placeholder: "8.5" });
+//   await alertDialog("3 difficulties ranked!");
 // Each resolves the same way the native dialog would: null/false on
-// cancel or Escape, the entered/confirmed value otherwise.
+// cancel or Escape, the entered/confirmed value otherwise (alertDialog
+// has nothing to cancel — every dismissal just resolves).
 
 export interface ConfirmOptions {
   okLabel?: string;
@@ -22,6 +24,10 @@ export interface PromptOptions {
   defaultValue?: string;
   okLabel?: string;
   cancelLabel?: string;
+}
+
+export interface AlertOptions {
+  okLabel?: string;
 }
 
 export type DialogRequest =
@@ -40,6 +46,12 @@ export type DialogRequest =
       okLabel: string;
       cancelLabel: string;
       resolve: (v: string | null) => void;
+    }
+  | {
+      kind: "alert";
+      message: string;
+      okLabel: string;
+      resolve: () => void;
     };
 
 // Set by the single mounted <DialogHost />. Calling the exported
@@ -90,5 +102,20 @@ export function askApiKey(): Promise<string | null> {
   return promptText("Please enter the API key for this pool:", {
     placeholder: "API key",
     okLabel: "Confirm",
+  });
+}
+
+// Pixel-styled replacement for window.alert() — a message with a
+// single dismiss button, no cancel/confirm choice to make. Resolves
+// once it's dismissed (click OK, click the overlay, or Escape).
+export function alertDialog(message: string, options: AlertOptions = {}): Promise<void> {
+  return new Promise((resolve) => {
+    if (!openDialog) return resolve();
+    openDialog({
+      kind: "alert",
+      message,
+      okLabel: options.okLabel ?? "OK",
+      resolve,
+    });
   });
 }

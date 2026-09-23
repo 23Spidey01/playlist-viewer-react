@@ -24,16 +24,28 @@ const formatAuthors = (author: string) => {
   return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
 };
 
-const PoolCard: React.FC<{ pool: PoolDetailed }> = ({ pool }) => {
+const PoolCard: React.FC<{ pool: PoolDetailed; index?: number }> = ({
+  pool,
+  index = 0,
+}) => {
   const navigate = useNavigate();
   const [heroBroken, setHeroBroken] = useState(false);
 
   // Prefer the banner, fall back to the cover, then the stripe fallback.
   const hero = !heroBroken ? pool.banner_image || pool.image : undefined;
 
+  // Stagger the fly-in-from-the-bottom entrance by grid position,
+  // capped so a big pool list doesn't take forever to finish — a
+  // quick wave rather than every card flying in at once. Since
+  // PoolCard is keyed by pool.id, this only plays on genuine mount
+  // (first load, or a pool newly matching a search) — re-sorting an
+  // already-visible pool doesn't remount it, so it won't replay then.
+  const staggerDelay = Math.min(index, 16) * 0.035;
+
   return (
     <div
-      className="pixel-pool-card cursor-pointer h-full flex flex-col"
+      className="pixel-pool-card pixel-pool-card-enter cursor-pointer h-full flex flex-col"
+      style={{ animationDelay: `${staggerDelay}s` }}
       onClick={() => navigate(`/pool/${pool.id}`)}
     >
       {/* Header: banner as the image area, title overlaid on top.

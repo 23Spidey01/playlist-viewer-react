@@ -22,12 +22,15 @@ export const DialogHost: React.FC = () => {
     return () => setDialogHandler(null);
   }, []);
 
-  // Escape always cancels, regardless of which control has focus.
+  // Escape always dismisses, regardless of which control has focus —
+  // "cancel" for confirm/prompt, but alert has nothing to cancel, so
+  // it just resolves the same way its own OK button would.
   useEffect(() => {
     if (!request) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (request.kind === "confirm") request.resolve(false);
+      else if (request.kind === "alert") request.resolve();
       else request.resolve(null);
       setRequest(null);
     };
@@ -35,7 +38,7 @@ export const DialogHost: React.FC = () => {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [request]);
 
-  // Autofocus the input (prompt) or the primary button (confirm).
+  // Autofocus the input (prompt) or the primary button (confirm/alert).
   useEffect(() => {
     if (!request) return;
     const t = setTimeout(() => {
@@ -47,14 +50,19 @@ export const DialogHost: React.FC = () => {
 
   if (!request) return null;
 
+  // Clicking the dim overlay behind the dialog dismisses it the same
+  // way Escape does — for alert there's no real "cancel" distinct from
+  // "OK", so both just resolve it.
   const handleCancel = () => {
     if (request.kind === "confirm") request.resolve(false);
+    else if (request.kind === "alert") request.resolve();
     else request.resolve(null);
     setRequest(null);
   };
 
   const handleConfirm = () => {
     if (request.kind === "confirm") request.resolve(true);
+    else if (request.kind === "alert") request.resolve();
     else request.resolve(value);
     setRequest(null);
   };
@@ -63,7 +71,11 @@ export const DialogHost: React.FC = () => {
     <div className="pixel-dialog-overlay" onClick={handleCancel}>
       <div className="pixel-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="pixel-font text-[10px] text-cyan-300 pixel-dialog-title">
-          {request.kind === "confirm" ? "CONFIRM" : "ENTER VALUE"}
+          {request.kind === "confirm"
+            ? "CONFIRM"
+            : request.kind === "alert"
+              ? "NOTICE"
+              : "ENTER VALUE"}
         </div>
         <div className="pixel-dialog-message">{request.message}</div>
         {request.kind === "prompt" && (
@@ -80,9 +92,12 @@ export const DialogHost: React.FC = () => {
           />
         )}
         <div className="pixel-dialog-actions">
-          <button className="pixel-tab" onClick={handleCancel}>
-            {request.cancelLabel}
-          </button>
+          {/* alert has nothing to cancel — just the one dismiss button. */}
+          {request.kind !== "alert" && (
+            <button className="pixel-tab" onClick={handleCancel}>
+              {request.cancelLabel}
+            </button>
+          )}
           <button
             ref={okButtonRef}
             className={`pixel-btn${

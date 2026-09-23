@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { BSSongInfo, BSDifficulty } from "./types";
 import { characteristicIcons } from "./types";
@@ -18,6 +18,10 @@ interface SongCardProps {
   ) => void;
   editMode: boolean;
   isNew?: boolean;
+  // Position in the currently rendered list, used to stagger the
+  // edit-mode wiggle so cards pop in one after another like a wave
+  // instead of every card starting at once.
+  index?: number;
 }
 
 const SongCard: React.FC<SongCardProps> = ({
@@ -28,6 +32,7 @@ const SongCard: React.FC<SongCardProps> = ({
   onToggleDiff,
   onToggleAllDiffs,
   editMode,
+  index = 0,
 }) => {
   const navigate = useNavigate();
   const coverUrl = song.versions?.[0]?.coverURL || "";
@@ -50,6 +55,11 @@ const SongCard: React.FC<SongCardProps> = ({
   const everyDiffSelected =
     allDiffs.length > 0 &&
     allDiffs.every((d) => isDiffSelected(d.characteristic, d.difficulty));
+  // Any diff of this song selected at all — highlights + stays popped
+  // out for as long as that's true, not just momentarily.
+  const hasSelection = Object.values(selectedDiffs ?? {}).some(
+    (diffs: any) => Array.isArray(diffs) && diffs.length > 0,
+  );
 
   const handleCardActivate = () => {
     if (editMode) {
@@ -59,12 +69,92 @@ const SongCard: React.FC<SongCardProps> = ({
     navigate(`/song/${song.id}`, { state: { starRatings, poolId } });
   };
 
+  // Deterministic per-card jitter (from the song id) so once wiggling,
+  // cards drift slightly out of sync with each other over time instead
+  // of settling back into lockstep — same idea as iOS's icon-jiggle.
+  const wiggleSeed = (song.id || "")
+    .split("")
+    .reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  // Stagger the wiggle's *start* by position, capped so a long list
+  // doesn't take forever to fully kick in — a quick wave down the
+  // page instead of every card starting to wiggle at once.
+  const staggerDelay = Math.min(index, 14) * 0.02;
+  const flyInDelay = Math.min(index, 20) * 0.03 + 0.15;
+  // Once the fly-in has actually played, .pixel-page-flyin is dropped
+  // from the className for good — otherwise, toggling edit mode later
+  // (which adds/removes .pixel-card-edit's own competing "animation"
+  // declaration) makes the browser treat .pixel-page-flyin's animation
+  // as newly starting again each time it goes from overridden back to
+  // in-effect, replaying the fly-in on every exit from edit mode.
+  const [hasFlownIn, setHasFlownIn] = useState(false);
+
+  const wiggleDuration = 0.34 + (wiggleSeed % 5) * 0.03;
+
+  // Track the wiggle scale this card was actually sitting at while in
+  // edit mode (1.035 once it had a selection, 1.012 otherwise — the
+  // same numbers .pixel-card-edit/.pixel-card-selected would apply),
+  // so the exit pop below can start from that size instead of always
+  // assuming the idle one.
+  const lastWiggleScaleRef = useRef(1.012);
+  if (editMode) {
+    lastWiggleScaleRef.current = hasSelection ? 1.035 : 1.012;
+  }
+
+  // One-shot bounce back to normal when edit mode turns off — without
+  // this the card just snaps from whatever mid-wiggle scale/rotation
+  // it happened to be at straight to its plain resting look the
+  // instant .pixel-card-edit is removed. Detected via a ref rather
+  // than reading editMode directly in the effect body, so this only
+  // fires on the true -> false transition, never on mount.
+  const wasEditModeRef = useRef(editMode);
+  const [isExitingEditMode, setIsExitingEditMode] = useState(false);
+  useEffect(() => {
+    if (wasEditModeRef.current && !editMode) setIsExitingEditMode(true);
+    wasEditModeRef.current = editMode;
+  }, [editMode]);
+
+  const wiggleStyle = editMode
+    ? {
+        // One value auto-repeats to both animations (pixel-wiggle,
+        // pixel-edit-pop-in) — both should start at the same moment.
+        // (Delaying the wiggle until the pop actually finished — to
+        // stop it from landing mid-cycle when the pop handed off —
+        // fixed one jitter but introduced a worse one: since the same
+        // delay reapplies every time hover swaps the animation-name
+        // between pixel-wiggle/pixel-wiggle-hover, the card would
+        // "pause" for that whole delay again on every hover in/out.)
+        animationDelay: `${staggerDelay}s`,
+        // Same duration for BOTH, not just the wiggle: giving the pop
+        // the wiggle's own per-card duration means its single
+        // iteration always finishes exactly as the wiggle completes
+        // its first full cycle — both land back at rotate(0)/the
+        // wiggle's resting scale at that same instant, so the handoff
+        // has no jump, without needing to touch either's delay.
+        animationDuration: `${wiggleDuration}s`,
+      }
+    : isExitingEditMode
+      ? ({ "--wiggle-scale": lastWiggleScaleRef.current } as React.CSSProperties)
+      : hasFlownIn
+        ? undefined
+        : { animationDelay: `${flyInDelay}s` };
+
   return (
     <div
-      className={`pixel-card flex flex-col w-full cursor-pointer${
+      className={`pixel-card${hasFlownIn ? "" : " pixel-page-flyin"} flex flex-col w-full cursor-pointer${
         editMode ? " pixel-card-edit" : ""
+      }${editMode && hasSelection ? " pixel-card-selected" : ""}${
+        isExitingEditMode ? " pixel-card-exit-pop" : ""
       }`}
+      style={wiggleStyle}
       onClick={handleCardActivate}
+      onAnimationEnd={(e) => {
+        // Only the fly-in — pixel-wiggle is infinite (never fires
+        // this) and pixel-edit-pop-in ending is unrelated to this flag.
+        if (e.animationName === "pixel-page-flyin-anim") setHasFlownIn(true);
+        // Drop the exit-pop class once its single run finishes, so the
+        // card is left with no leftover "animation" declaration.
+        if (e.animationName === "pixel-edit-pop-out") setIsExitingEditMode(false);
+      }}
       tabIndex={0}
       role="button"
       title={

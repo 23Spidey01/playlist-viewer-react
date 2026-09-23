@@ -27,6 +27,8 @@
          difficulty tiles, mini action buttons)
      14. Loading progress
      15. Dialogs (prompt/confirm replacement)
+     16. Edit mode effects (page frame, dimmed non-editable content)
+     17. Rank new maps page (BeatSaver search/browse, staged song list)
 
    Class names are shared across components (SongCard, PoolCard,
    PoolHeader, SongInfo, Dialog, App's TopBar/PoolOverview) — check
@@ -124,6 +126,27 @@
     0 5px 0 var(--px-outline);
 }
 
+/* Disabled state (e.g. "Rank 0 Selected Difficulties" before anything's
+   checked) — grayed out and flattened, same specificity as :hover/
+   :active/.secondary/.danger above (one class + one pseudo-class, or
+   two classes) but placed after all of them so it wins the tie and
+   replaces whichever color variant with a dead, unclickable gray
+   regardless of it being the gold/cyan/red button underneath. Without
+   this, a disabled .pixel-btn just sits there fully colored and
+   inviting a click that silently does nothing. */
+.pixel-btn:disabled {
+  background: #4a4f66;
+  color: #9aa2ba;
+  cursor: default;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 3px var(--px-outline),
+    0 5px 0 var(--px-outline);
+  filter: none;
+  transform: none;
+}
+
 /* Combine with .pixel-btn when the button has a leading icon —
    needs flex instead of inline-block to align icon + label. */
 .pixel-btn.with-icon {
@@ -174,10 +197,17 @@
   color: #b7c0d6;
 }
 
-/* Currently selected sort key / edit-mode toggle. */
+/* Currently selected sort key. */
 .pixel-tab.active {
   background: var(--px-cyan-dark);
   color: #eafcff;
+}
+
+/* EDIT MODE toggle, once on — gold instead of the generic cyan .active,
+   to match the page-wide edit-mode vignette (see section 16). */
+.pixel-tab.editing {
+  background: var(--px-gold);
+  color: var(--px-outline);
 }
 
 /* "Compare Pools" icon: two overlapping squares, drawn with two <i>
@@ -384,6 +414,29 @@
   }
 }
 
+/* Same blinking chip as .pixel-stat.warn ("NOT FOUND"), orange instead
+   of red. */
+.pixel-stat.caution {
+  color: #fb923c;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px #ea580c;
+  animation: pixel-caution-pulse 1.4s steps(1) infinite;
+}
+.pixel-stat.caution b {
+  color: inherit;
+}
+
+@keyframes pixel-caution-pulse {
+  0%, 49% {
+    color: #fb923c;
+    box-shadow: 0 0 0 2px #ea580c;
+  }
+  50%, 100% {
+    color: #ffd9ae;
+    box-shadow: 0 0 0 2px #fdba74;
+  }
+}
+
 /* The "show"/"hide" toggle inside a .pixel-stat chip. */
 .pixel-stat-link {
   background: none;
@@ -408,22 +461,30 @@
     inset -3px -3px 0 var(--px-bg-dark),
     0 0 0 4px var(--px-outline),
     0 6px 0 var(--px-outline);
-  transition: transform 80ms steps(1), box-shadow 80ms steps(1);
+  /* Same "back out" bounce as .pixel-pool-card's hover — box-shadow
+     stays on the chunky steps(1) snap, only the lift/scale/tilt gets
+     the springier easing. Doesn't affect edit mode: that swaps this
+     card over to the wiggle/pop-in animation system instead, which
+     has its own hover (.pixel-card-edit:hover). */
+  transition:
+    transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 80ms steps(1);
 }
 
-/* Lifts up slightly and the drop shadow grows, like the card "floats". */
+/* Lifts up, grows and tilts slightly, like the card "jumps" toward
+   you — the drop shadow grows to match. */
 .pixel-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-8px) scale(1.03) rotate(-1deg);
   box-shadow:
     inset 3px 3px 0 var(--px-bg-light),
     inset -3px -3px 0 var(--px-bg-dark),
     0 0 0 4px var(--px-outline),
-    0 8px 0 var(--px-outline);
+    0 14px 0 var(--px-outline);
 }
 
-/* Pressed: sinks below its resting position. */
+/* Pressed: sinks below its resting position with a little squash. */
 .pixel-card:active {
-  transform: translateY(2px);
+  transform: translateY(3px) scale(0.975) rotate(0deg);
   box-shadow:
     inset 3px 3px 0 var(--px-bg-light),
     inset -3px -3px 0 var(--px-bg-dark),
@@ -440,25 +501,81 @@
     inset -3px -3px 0 var(--px-bg-dark),
     0 0 0 4px var(--px-outline),
     0 8px 0 var(--px-outline);
-  transition: transform 80ms steps(1), box-shadow 80ms steps(1);
+  /* Same "back out" bounce as the fly-in entrance, so hovering feels
+     like part of the same springy, game-like motion language instead
+     of a stiff linear lift. box-shadow stays on the chunky steps(1)
+     snap — only the lift/scale/tilt itself gets the bounce. */
+  transition:
+    transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 80ms steps(1);
 }
 
 .pixel-pool-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-9px) scale(1.035) rotate(-1.2deg);
   box-shadow:
     inset 3px 3px 0 var(--px-bg-light),
     inset -3px -3px 0 var(--px-bg-dark),
     0 0 0 4px var(--px-outline),
-    0 11px 0 var(--px-outline);
+    0 15px 0 var(--px-outline);
 }
 
 .pixel-pool-card:active {
-  transform: translateY(4px);
+  transform: translateY(4px) scale(0.97) rotate(0deg);
   box-shadow:
     inset 3px 3px 0 var(--px-bg-light),
     inset -3px -3px 0 var(--px-bg-dark),
     0 0 0 4px var(--px-outline),
     0 4px 0 var(--px-outline);
+}
+
+/* Plays once on mount (the overview grid's initial load, or a pool
+   newly matching a search) — PoolCard.tsx sets a per-card
+   animation-delay so cards fly in one after another instead of all
+   at once. "backwards" fill holds each card at the "from" keyframe
+   (invisible, offset down) during its wait instead of flashing in at
+   full opacity before its turn. Ends at translateY(0)/opacity 1 —
+   the same as .pixel-pool-card's own resting state — so handing back
+   to the regular hover/active transform below doesn't visibly jump. */
+/* cubic-bezier(0.34, 1.56, 0.64, 1) is a "back out" curve — it
+   overshoots past the resting position before settling back, giving
+   a bouncy, game-like landing instead of a flat, stiff ease-out.
+   Bigger travel distance + a little scale/rotate punch make the
+   overshoot actually readable instead of subtle. */
+.pixel-pool-card-enter {
+  animation: pixel-pool-card-fly-in 620ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes pixel-pool-card-fly-in {
+  from {
+    opacity: 0;
+    transform: translateY(90px) scale(0.85) rotate(-2deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+/* Same "fly in from the bottom" idea, reused across the pool detail
+   page (PoolHeader, the search/sort bar, song cards) on its initial
+   load — see SongList.tsx/PoolHeader.tsx/SongCard.tsx. Each user sets
+   its own animation-delay inline (0 for the header, a small fixed
+   delay for the search bar, a per-card stagger for the grid); the
+   animation/keyframes themselves are shared here. Plays once on
+   mount, same as .pixel-pool-card-enter, so it won't replay on
+   re-sorts/re-filters that don't remount the element. */
+/* Same "back out" bounce as .pixel-pool-card-enter — no rotate here
+   though, since this is also used on full-width bars (the header,
+   the search/sort row), where a tilt would look like a glitch rather
+   than "juicy". Bigger travel + a touch of scale still reads as a
+   springy landing on those too. */
+.pixel-page-flyin {
+  animation: pixel-page-flyin-anim 560ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes pixel-page-flyin-anim {
+  from { opacity: 0; transform: translateY(70px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Cover image (song/pool thumbnail): hard outline instead of rounded
@@ -503,6 +620,12 @@
 /* App-wide topbar: logo + search + sort tabs + compare button, all in
    one row (see App.tsx TopBar). */
 .pixel-topbar {
+  /* Above .pixel-edit-frame (z-index 40, position: fixed) — without
+     its own stacking context here, the topbar (static, no z-index)
+     would otherwise render underneath that fixed overlay regardless
+     of DOM order, putting the vignette over the logo. */
+  position: relative;
+  z-index: 41;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -529,10 +652,12 @@
    side. The fixed height means the leaderboard can never make the
    header grow — see .pixel-pool-header-lb below. */
 .pixel-pool-header {
+  position: relative; /* positioning context for .pixel-tape-wrap */
   display: flex;
   height: 176px; /* must match cover width/height exactly */
   margin: 0 0 20px;
   background: var(--px-bg);
+  transition: background 200ms ease-out;
   box-shadow:
     0 0 0 4px var(--px-outline),
     0 8px 0 var(--px-outline);
@@ -635,28 +760,316 @@
    not just the little checkbox inside it — see SongCard.tsx, the
    badge <span> gets this class + an onClick handler while editMode
    is on. */
+/* Every badge shrinks slightly the moment edit mode turns on — makes
+   the selected ones (below) read as clearly "popped out" by contrast,
+   instead of competing with badges that are already full-size. */
 .pixel-badge-selectable {
   cursor: pointer;
   user-select: none;
+  transform: scale(0.9);
+  transition:
+    transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 120ms ease-out;
 }
+/* Bigger pop + brighter flash than before — bumped past the base
+   (unselected) size, not just less-shrunk, so hovering a badge reads
+   as a clear invitation to click rather than a faint highlight. */
 .pixel-badge-selectable:hover {
-  filter: brightness(1.15);
+  filter: brightness(1.35);
+  transform: scale(1.12) rotate(-2deg);
+}
+/* No press feedback existed before at all — badges just toggled with
+   no in-between feel. A hard, snappy squash on mousedown gives the
+   click some weight, same "chunky button" language as .pixel-btn:active
+   elsewhere in this file. */
+.pixel-badge-selectable:active {
+  filter: brightness(0.85);
+  transform: scale(0.78) rotate(2deg);
+  transition: transform 60ms ease-out, filter 60ms ease-out;
 }
 
 /* Applied together with .pixel-badge when that difficulty is part of
-   the current selection. */
+   the current selection — pops back out past even the normal (pre-
+   edit-mode) size, on top of .pixel-badge-selectable's shrink above
+   (this wins: two classes beats one for specificity). */
 .pixel-badge.selected {
   outline: 2px solid #eafcff;
   outline-offset: 2px;
+  transform: scale(1);
+}
+
+/* Not-yet-selected badges in edit mode invert: instead of a solid
+   colored fill, they go dark with just a colored outline + text —
+   makes it obvious at a glance which diffs aren't picked yet, and
+   makes the ones you *have* selected (which keep the normal solid
+   look, below) stand out more by contrast. Each :not(.selected) rule
+   is three class-level selectors (specificity 0,3,0), beating the
+   plain two-class base rules (.pixel-badge.starred/.diff-X, 0,2,0)
+   that set the normal fill — so as soon as .selected is added, these
+   rules simply stop matching and the base rule underneath takes back
+   over on its own, no extra "restore" rule needed. Text/outline colors
+   reuse the brighter tints already used for unranked difficulty
+   labels on the song info page, since those were specifically chosen
+   to read well on a dark background (the solid-fill colors below
+   weren't — they're meant to sit under light text). */
+.pixel-badge-selectable.starred:not(.selected) {
+  background: var(--px-outline);
+  color: var(--px-gold);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px var(--px-gold);
+}
+
+.pixel-badge-selectable.diff-Easy:not(.selected) {
+  background: var(--px-outline);
+  color: #4ade80;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px #16a34a;
+}
+.pixel-badge-selectable.diff-Normal:not(.selected) {
+  background: var(--px-outline);
+  color: #60a5fa;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px #2563eb;
+}
+.pixel-badge-selectable.diff-Hard:not(.selected) {
+  background: var(--px-outline);
+  color: #fb923c;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px #ea580c;
+}
+.pixel-badge-selectable.diff-Expert:not(.selected) {
+  background: var(--px-outline);
+  color: #f87171;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px #dc2626;
+}
+.pixel-badge-selectable.diff-ExpertPlus:not(.selected) {
+  background: var(--px-outline);
+  color: #a78bfa;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px #7c3aed;
 }
 
 /* Edit mode on the card itself: clicking anywhere on the card (other
    than a badge or a footer link) selects/deselects every difficulty
-   of that song instead of navigating to the song page. This class
-   only changes the cursor as a visual hint — the actual behavior
-   swap happens in SongCard.tsx's onClick handler. */
+   of that song instead of navigating to the song page — the behavior
+   swap happens in SongCard.tsx's onClick handler. The wiggle here is
+   the unmistakable "you're in edit mode" cue, iOS-icon-jiggle style.
+   Two animations run together: pixel-edit-pop-in plays once — a
+   bouncy "back out" pop, the same overshoot-then-settle motion used
+   for .pixel-pool-card-enter and its hover — when a card's turn in
+   the entrance wave comes up; then pixel-wiggle takes over and
+   rotates forever. Being listed last, pixel-edit-pop-in "wins" the
+   shared transform property while it's playing; once its single
+   iteration ends, pixel-wiggle (already running underneath) takes
+   back over. SongCard.tsx gives both the SAME delay (so cards pop in
+   one after another, wave-style) and, importantly, the SAME duration
+   too — that's what actually keeps the handoff seamless: the pop's
+   one iteration always finishes exactly as the wiggle completes its
+   first full cycle, both landing back at rotate(0)/the wiggle's
+   resting scale at that same instant. (Giving the wiggle a *later*
+   delay than the pop, so it couldn't land mid-cycle at handoff, also
+   fixes that jump — but reintroduces it every time hover swaps the
+   animation-name between pixel-wiggle/pixel-wiggle-hover, since that
+   same delay reapplies on every hover in/out.) Past that first
+   handoff, SongCard.tsx gives the wiggle a per-card duration so cards
+   drift out of sync once settled instead of snapping back into
+   lockstep. */
 .pixel-card-edit {
+  --wiggle-scale: 1.012;
   cursor: copy;
+  transform-origin: center;
+  animation:
+    pixel-wiggle 0.36s ease-in-out infinite backwards,
+    pixel-edit-pop-in 480ms ease-out 1 backwards;
+}
+
+/* A song with at least one selected difficulty stays bigger than the
+   normal edit-mode idle size for as long as that's true — reusing
+   pixel-wiggle's already-running animation via the --wiggle-scale
+   custom property (a plain var(), not the animated property itself,
+   so changing it doesn't fight the animation the way a class-based
+   transform override would — see the earlier notes on inline vs.
+   animation vs. class transform priority elsewhere in this file). */
+.pixel-card-edit.pixel-card-selected {
+  --wiggle-scale: 1.035;
+}
+
+/* Highlight ring for the same "has a selected diff" state — an extra
+   shadow layer added past .pixel-card's usual bevel+outline+drop
+   shadow stack, not a replacement for it. Matches .pixel-card:hover's
+   specificity (one class + one pseudo-class each) and comes later in
+   the file, so it still shows through while a selected card is
+   hovered instead of hover's own box-shadow overriding it. */
+.pixel-card.pixel-card-selected {
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 6px 0 var(--px-outline),
+    0 0 0 7px var(--px-gold);
+}
+
+/* Starts and ends each cycle at rest, but "rest" is a constant 1.025
+   scale — not 1 — so cards stay a little bigger for as long as edit
+   mode is on, instead of only popping bigger momentarily and settling
+   back to their normal size. Starting/ending each cycle at that same
+   scale (only rotation oscillates) means a freshly-started card eases
+   out from rest instead of snapping straight into a tilt, and
+   pixel-edit-pop-in (below) hands off to this at the same 1.025 with
+   no jump. */
+@keyframes pixel-wiggle {
+  0%   { transform: scale(var(--wiggle-scale)) rotate(0deg); }
+  25%  { transform: scale(var(--wiggle-scale)) rotate(-1.3deg); }
+  75%  { transform: scale(var(--wiggle-scale)) rotate(1.3deg); }
+  100% { transform: scale(var(--wiggle-scale)) rotate(0deg); }
+}
+
+/* One-shot pop when a card's turn in the wave comes up. 0% matches a
+   card's plain resting look (scale 1, no tilt, fully opaque) — with
+   "backwards" fill, every card sits at this 0% state for however long
+   it's waiting its turn, so it needs to look completely normal, not
+   just an early/invisible frame of the pop (an .pixel-edit-pop-in
+   that *started* small/faded, like .pixel-pool-card-enter's entrance
+   does, would make every card vanish the instant edit mode turns on,
+   since they'd all be sitting in that "before" state at once — only
+   .pixel-pool-card-enter can get away with that because each pool
+   card mounts fresh exactly when its delay should start, rather than
+   all existing at once and waiting). The exaggerated overshoot swing
+   at 55% is what actually sells the "pop", not the animation's
+   edges — it lands back at the wiggle's own resting scale
+   (var(--wiggle-scale)) with no tilt, so the hand-off to pixel-wiggle
+   (already running underneath) is seamless. */
+@keyframes pixel-edit-pop-in {
+  0%   { transform: scale(1) rotate(0deg); }
+  55%  { transform: scale(1.18) rotate(-6deg); }
+  100% { transform: scale(var(--wiggle-scale)) rotate(0deg); }
+}
+
+/* Hovering a wiggling card pops it forward and calms the wiggle down —
+   only the wiggle's keyframe set changes here (to pixel-wiggle-hover),
+   so the per-card duration/delay set inline in SongCard.tsx keeps
+   applying. pixel-edit-pop-in must stay listed in the *same slot* here
+   too — dropping it from the list on hover and re-adding it on
+   mouse-out would count as a fresh animation each time, replaying the
+   pop every time you stop hovering. */
+.pixel-card-edit:hover {
+  animation-name: pixel-wiggle-hover, pixel-edit-pop-in;
+  position: relative;
+  z-index: 5;
+}
+
+/* Big lift + pop — noticeably more than .pixel-card:hover's plain
+   (non-edit-mode) lift, since edit mode is already the "exaggerated"
+   state and should read as more alive under the pointer, not less.
+   Deliberately still — no back-and-forth rotate swing like the idle
+   wiggle has — a card whose diff badges keep sliding side to side
+   under a continuously rotating card is nearly impossible to click
+   precisely. All three keyframe stops share one fixed transform, so
+   this stays an infinite animation (still needed to actually override
+   pixel-wiggle's own transform underneath it — a plain :hover
+   { transform } can't win against a running animation) without ever
+   visibly moving once it's reached this pose. */
+@keyframes pixel-wiggle-hover {
+  0%   { transform: translateY(-13px) scale(calc(var(--wiggle-scale) + 0.09)) rotate(-1.5deg); }
+  50%  { transform: translateY(-13px) scale(calc(var(--wiggle-scale) + 0.09)) rotate(-1.5deg); }
+  100% { transform: translateY(-13px) scale(calc(var(--wiggle-scale) + 0.09)) rotate(-1.5deg); }
+}
+
+/* Pressing a card (mousedown, edit mode) — same animation-name trick
+   as :hover above, so the per-card duration/delay inline in
+   SongCard.tsx and pixel-edit-pop-in's slot both stay put. Listed
+   after .pixel-card-edit:hover so it wins the tie (both are one
+   class + one pseudo-class, so it's source order that decides) when
+   a card is clicked while already hovered — a hard, snappy squash
+   down into the page, the wiggle equivalent of .pixel-card:active's
+   press but readable over the top of the ongoing animation, which a
+   plain :active { transform: ... } rule can't manage (an animation's
+   own transform always wins over a static one).
+   :active bubbles: pressing a diff badge (or a footer link) makes
+   every ancestor match :active too, not just the element you actually
+   pressed — so without the :not(:has(...)) guard, going for a single
+   small badge would shove/squash the whole card under your cursor at
+   the exact moment you're trying to land the click, making the badge
+   you wanted a moving target. Excluding those cases means the card
+   only does its own press animation when the press actually landed on
+   the card body itself; the badge gets its own distinct press feel
+   instead (.pixel-badge-selectable:active, below). */
+.pixel-card-edit:active:not(:has(.pixel-badge-selectable:active, .pixel-icon-btn:active)) {
+  animation-name: pixel-wiggle-press, pixel-edit-pop-in;
+}
+
+@keyframes pixel-wiggle-press {
+  0%, 100% { transform: translateY(5px) scale(calc(var(--wiggle-scale) - 0.09)) rotate(-2.5deg); }
+  50%      { transform: translateY(5px) scale(calc(var(--wiggle-scale) - 0.09)) rotate(2.5deg); }
+}
+
+/* Mirror of pixel-edit-pop-in, for leaving edit mode instead of
+   entering it. .pixel-card-edit (and its wiggle) is gone the instant
+   editMode flips false — without this, the card would just snap from
+   whatever mid-wiggle scale/rotation it was at straight to its plain
+   resting look. SongCard.tsx detects the true->false transition, sets
+   --wiggle-scale to that card's last known wiggle size (1.035 if it
+   had a selection, 1.012 otherwise — it can't read the wiggle
+   animation's live value, so it tracks the same number SongCard.tsx
+   would have handed to .pixel-card-edit) and adds this class for one
+   run, removing it again on animationend so the card is left with no
+   leftover "animation" declaration once it's back to normal. Overshoots
+   *past* scale(1) before settling, same exaggerated back-out language
+   as the rest of the site, rather than easing straight down to it. */
+.pixel-card-exit-pop {
+  animation: pixel-edit-pop-out 380ms cubic-bezier(0.34, 1.56, 0.64, 1) 1 both;
+}
+
+@keyframes pixel-edit-pop-out {
+  0%   { transform: scale(var(--wiggle-scale, 1.012)) rotate(0deg); }
+  40%  { transform: scale(1.2) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* Selection action bar (SongList.tsx): stays mounted at all times so
+   its height can animate open/closed with edit mode — grid-rows is
+   the standard trick for animating to/from an intrinsic ("auto")
+   height, which a plain `transition: height` can't do. Without this,
+   the bar would pop into existence at full height instantly and
+   shove the search bar/song grid below it down in the same instant. */
+.pixel-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease-out;
+}
+
+.pixel-collapse.pixel-collapse-open {
+  grid-template-rows: 1fr;
+}
+
+.pixel-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Content fades in a beat after the row starts opening (and fades
+   straight out on close) so it doesn't look squashed mid-animation. */
+.pixel-collapse-inner > * {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.pixel-collapse-open .pixel-collapse-inner > * {
+  opacity: 1;
+  transition-delay: 90ms;
 }
 
 /* == 12. Missing-songs panel ===================================== */
@@ -700,25 +1113,149 @@
   padding-top: 1px;
 }
 
-/* Scrollable list of missing song ids — capped height so a pool with
-   a lot of missing maps doesn't push the rest of the page down. */
+/* Scrollable list of missing songs — capped height so a pool with a
+   lot of missing maps doesn't push the rest of the page down. One
+   .pixel-missing-song per hash (not per diff) — grouping by song is
+   the whole point: a flat list of formatted diff ids made it hard to
+   tell "3 songs, several diffs each" from "8 separate songs" at a
+   glance. */
 .pixel-missing-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 240px;
+  gap: 8px;
+  max-height: 320px;
   overflow-y: auto;
   margin: 10px 0 14px;
   padding-right: 4px;
 }
 
-.pixel-missing-row {
-  font-family: monospace;
-  font-size: 11px;
-  color: #ffb3b3;
+/* One missing song's section — not on BeatSaver, so no map data to
+   fetch, but Hitbloq's own ranked-list response still carries a name/
+   cover/star-rating per difficulty from when it was ranked, used here
+   instead of just the bare hash. Falls back to the hash alone (see
+   MissingSongCard) for the rare entry with no name on record either. */
+.pixel-missing-song {
   background: var(--px-outline);
-  padding: 5px 9px;
+  padding: 8px 10px;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+.pixel-missing-song-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+/* Square, same as every other cover thumbnail on the site — sized via
+   this class whether it ends up holding an <img> (has cover art) or
+   the .pixel-thumb fallback fill (broken/missing cover). */
+.pixel-missing-song-cover {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px var(--px-outline);
+}
+
+.pixel-missing-song-head .name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #eafcff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Secondary now that the song name is the headline — was the primary
+   (larger, red) text before there was a name to show instead. */
+.pixel-missing-song-head .hash {
+  font-family: monospace;
+  font-size: 9px;
+  color: #8b95ad;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* No name on record at all — the hash itself stands in as the
+   headline, back to its original larger/red treatment. */
+.pixel-missing-song-head .hash.as-name {
+  font-size: 12px;
+  color: #ffb3b3;
+}
+
+/* How many of this song's difficulties are missing — the count this
+   whole section exists to make legible at a glance. */
+.pixel-missing-song-head .count {
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  color: var(--px-outline);
+  background: #ffb3b3;
+  padding: 3px 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.pixel-missing-song-diffs {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Sits directly above a song card (SongList.tsx's main grid) whose
+   BeatSaver map id showed up more than once in this pool's resolved
+   song list — see isDuplicateSong. A static bar, not an overlay on
+   top of the card: an earlier absolutely-positioned corner tag ran
+   straight into the song title whenever it was long enough to wrap
+   that far, since SongCard's title wraps instead of truncating.
+   Orange (not red) so it reads as a "heads up" flag, not necessarily
+   something broken, same language as .pixel-stat.caution above. */
+.pixel-duplicate-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-bottom: -4px;
+  background: #fb923c;
+  box-shadow: 0 0 0 2px var(--px-outline);
+}
+
+.pixel-duplicate-banner .tag {
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  color: var(--px-outline);
+  flex-shrink: 0;
+}
+
+/* The hash this specific card was resolved from — comparing it
+   against another duplicate card's is what actually shows whether
+   they're really the same ranked entry (identical hash — nothing to
+   unrank) or two different ones (worth unranking the older). */
+.pixel-duplicate-banner .hash {
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--px-outline);
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pixel-missing-song-diffs .char-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pixel-missing-song-diffs .char-label {
+  font-size: 10px;
+  color: #8b95ad;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
 }
 
 /* == 13. Song info page =========================================== */
@@ -882,6 +1419,32 @@
 .pixel-diff-tile.ranked .stats { color: #ffffff; }
 .pixel-diff-tile.ranked .stats b { color: #ffffff; }
 
+/* Reused in RankNewMaps.tsx's queue, where the whole tile is the click
+   target for toggling a difficulty in/out of the batch — SongInfo.tsx's
+   tiles aren't clickable themselves (only the Rank/Unrank buttons
+   inside are), so this cursor only applies where .selectable says so. */
+.pixel-diff-tile.selectable {
+  cursor: pointer;
+  transition: filter 80ms ease-out;
+}
+.pixel-diff-tile.selectable:hover {
+  filter: brightness(1.15);
+}
+/* An outline (not a box-shadow addition) on purpose — every difficulty
+   color variant above already owns the tile's full box-shadow list, so
+   a shadow-based ring would need a combined rule per difficulty color
+   to coexist with it. An outline layers independently of box-shadow,
+   so one rule covers every difficulty.
+   No scale pop here (unlike the edit-mode diff badges elsewhere) — this
+   grid is fixed 2-columns and a scaled-up tile doesn't reserve any
+   extra space for itself, so with two tiles selected in the same row
+   they'd grow right into each other. The gold outline alone is enough
+   to read as "selected" without that collision. */
+.pixel-diff-tile.selectable.selected {
+  outline: 3px solid var(--px-gold);
+  outline-offset: 2px;
+}
+
 /* Small Rank / Unrank / Set Stars buttons inside a difficulty tile —
    same bevel recipe as .pixel-btn, just smaller. */
 .pixel-mini {
@@ -981,6 +1544,8 @@
 .pixel-dialog {
   width: 100%;
   max-width: 360px;
+  max-height: 80vh;
+  overflow-y: auto;
   background: var(--px-bg);
   padding: 18px 20px 20px;
   box-shadow:
@@ -1013,4 +1578,401 @@
 .pixel-dialog-actions .pixel-tab {
   flex: 1;
   text-align: center;
+}
+
+/* == 16. Edit mode effects (page frame, dimmed non-editable content) === */
+/* Rendered in SongList.tsx as a fixed-position overlay (not part of
+   its own layout), so it frames the whole viewport regardless of
+   scroll position — the point is to make "you're editing" obvious
+   even when you're not looking directly at a wiggling card. A soft
+   gold vignette glowing in from the edges, breathing gently, rather
+   than a hard border line.
+
+   Split into two layers so the entrance/exit fade and the continuous
+   breathing pulse don't fight over the same `opacity` property: the
+   outer .pixel-edit-frame fades in/out via a plain transition when
+   editMode toggles (always mounted — only the -on class changes, so
+   there's something to transition between); the inner
+   .pixel-edit-frame-pulse runs the infinite breathing animation on
+   its own opacity, layered on top. */
+.pixel-edit-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 260ms ease-out;
+}
+
+.pixel-edit-frame.pixel-edit-frame-on {
+  opacity: 1;
+}
+
+.pixel-edit-frame-pulse {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(243, 197, 66, 0.35) 100%
+  );
+  animation: pixel-edit-frame-pulse-anim 2.2s ease-in-out infinite;
+}
+
+@keyframes pixel-edit-frame-pulse-anim {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* Pool header content that isn't relevant while editing difficulties
+   (cover, title/description/stats, leaderboard) — see PoolHeader.tsx.
+   The action row (Rank New Maps, Recalculate CR, EDIT MODE) is never
+   given this class, so it stays fully readable; the first two buttons
+   there handle their own disabled look individually. */
+.pixel-edit-dim {
+  filter: grayscale(0.85) brightness(0.55);
+  transition: filter 200ms ease-out;
+}
+
+/* The header's own blue background (visible in the gaps around/behind
+   the dimmed content and the action row, since .pixel-pool-header-main
+   itself has no background of its own) also dims in edit mode — but as
+   a plain background-color swap on .pixel-pool-header itself, not a
+   filter: a filter here would dim the action row's buttons too
+   (including EDIT MODE, which needs to stay clearly visible/vivid). */
+.pixel-pool-header.pixel-edit-dim-bg {
+  background: #23262f;
+}
+
+/* Big blinking "EDIT MODE!!" call-out, absolutely centered over the
+   top-of-page .pixel-topbar (the one with the site logo) — see
+   App.tsx's PoolSongListPage, which owns the editMode state and
+   passes it down to SongList. .pixel-topbar is the positioning
+   context (position: relative, already set on that rule). Same hard
+   two-tone blink technique as .pixel-stat.warn ("NOT FOUND"), just in
+   yellow instead of red and much bigger. pointer-events: none since
+   it's purely a callout, not interactive. */
+.pixel-editmode-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-family: "Press Start 2P", monospace;
+  font-size: 24px;
+  text-align: center;
+  /* Same duration + easing as .pixel-edit-frame-pulse-anim (the
+     vignette) so the two pulse in the same rhythm — both start the
+     moment editMode turns on, so they stay in sync. */
+  animation: pixel-editmode-banner-blink 2.2s ease-in-out infinite;
+}
+
+@keyframes pixel-editmode-banner-blink {
+  0%, 100% { color: var(--px-gold); }
+  50%      { color: #fff3b0; }
+}
+
+/* Barrier tape wrapped across the pool header in edit mode — see
+   PoolHeader.tsx. .pixel-pool-header is the positioning context
+   (position: relative, set on that rule) this overlay fills exactly;
+   overflow: hidden here crops each rotated strip to the header's own
+   edges, which is what makes it read as "wrapped around" the box
+   rather than floating past it. */
+.pixel-tape-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 30;
+}
+
+/* Each strip is split across two elements so the entrance "zoom"
+   (scale, animated here on .pixel-tape-slot) and the strip's own
+   fixed tilt (rotate, inline on .pixel-tape-strip) don't fight over
+   the same transform property — an inline style always wins over a
+   class for the same property, so a class-based scale on the same
+   element that also carries an inline rotate would simply never show.
+   Split onto two nested elements, the two transforms compose normally
+   instead: the slot positions + zooms, the strip inside it rotates.
+
+   .pixel-tape-slot is the long horizontal bar itself, sized at a
+   fixed 2000px (rather than a % of the header's own — comparatively
+   small — width or height) so it comfortably outlasts any rotation
+   angle without falling short of the header's edges once rotated;
+   .pixel-tape-wrap's overflow: hidden crops the excess. It's centered
+   on its (top, left) point via negative margins since a rotated
+   element's own top/left corner doesn't stay put otherwise. */
+.pixel-tape-slot {
+  position: absolute;
+  width: 2000px;
+  height: 32px;
+  margin-left: -1000px;
+  margin-top: -16px;
+  /* Hidden/shrunk by default; .pixel-tape-wrap-on zooms each slot in
+     independently (see the staggered transition-delay rules below),
+     rather than the whole tape wrap animating as one single block. */
+  opacity: 0;
+  transform: scale(1.4);
+  transition: opacity 220ms ease-out, transform 220ms ease-out;
+}
+
+.pixel-tape-wrap-on .pixel-tape-slot {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* A different transition-delay per slot so each strip zooms in/out at
+   a slightly different moment — reads as independent pieces of tape
+   landing one after another instead of one uniform sheet. Applies
+   equally on the way out, since it's a plain transition-delay. */
+.pixel-tape-slot:nth-child(1) { transition-delay: 0ms; }
+.pixel-tape-slot:nth-child(2) { transition-delay: 70ms; }
+.pixel-tape-slot:nth-child(3) { transition-delay: 140ms; }
+.pixel-tape-slot:nth-child(4) { transition-delay: 210ms; }
+.pixel-tape-slot:nth-child(5) { transition-delay: 280ms; }
+.pixel-tape-slot:nth-child(6) { transition-delay: 350ms; }
+
+/* The actual tape visuals: fills its slot and carries only the tilt
+   (inline rotate). A strip that ends up looking "vertical" is really
+   just this same bar rotated ~90°, not a separate narrow-and-tall
+   element — deliberate, since it keeps text (see the span rule below)
+   plain horizontal and simply rotating along with the bar, reading
+   consistently relative to whatever angle that tape ends up at. An
+   earlier version gave near-vertical strips their own narrow, tall
+   shape — text then had to be squeezed sideways into a ~32px-wide
+   column to fit at all, which is what made it unreadable on those. */
+.pixel-tape-strip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  overflow: hidden;
+  background-image: linear-gradient(
+    45deg,
+    #16130a 25%,
+    var(--px-gold) 25%,
+    var(--px-gold) 50%,
+    #16130a 50%,
+    #16130a 75%,
+    var(--px-gold) 75%
+  );
+  background-size: 64px 64px;
+  box-shadow: 0 0 0 2px var(--px-outline);
+}
+
+.pixel-tape-strip span {
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  color: #16130a;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* == 17. Rank new maps page ====================================== */
+/* See RankNewMaps.tsx. The page has two halves: a BeatSaver
+   search/browse panel (replaces manually copy-pasting links) whose
+   rows use .pixel-search-row, and — once maps have been added — a
+   staged list of "queued to rank" songs using .pixel-staged-row, with
+   the same diff-badge-as-checkbox language edit mode uses elsewhere
+   (.pixel-badge-selectable/.selected from section 11, reused as-is). */
+
+/* Boxed panel wrapping each half — same bevel recipe as .pixel-card,
+   just a block container instead of a fixed-layout card. */
+.pixel-rank-panel {
+  background: var(--px-bg);
+  padding: 16px;
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 6px 0 var(--px-outline);
+}
+
+/* One BeatSaver search/browse result. Deliberately calmer than
+   .pixel-card's hover (no rotate/scale) — this is a dense scannable
+   list, not a showcase grid, and dozens of these can be on screen
+   while paging through search results. */
+.pixel-search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--px-outline);
+  box-shadow: 0 0 0 2px var(--px-outline), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  transition: box-shadow 80ms steps(1), background 80ms steps(1);
+}
+
+.pixel-search-row:hover {
+  background: #171a30;
+  box-shadow: 0 0 0 2px var(--px-cyan-dark), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* Already queued to rank — the whole row dims and the add button
+   below switches to a disabled "Added" checkmark, so it's obvious at
+   a glance which search results you've already picked without having
+   to scroll down to the staged list to check. */
+.pixel-search-row.added {
+  opacity: 0.5;
+}
+
+/* Marks the part of a search result's text that actually matched the
+   query — search results are token-based (any word, anywhere), so
+   seeing *why* each row matched is what makes the real target easy to
+   spot in a page full of loose partial matches. */
+.pixel-search-hit {
+  background: var(--px-gold);
+  color: var(--px-outline);
+  padding: 0 2px;
+  font-weight: 700;
+}
+
+/* Small tag on a result already present somewhere in this pool
+   (cross-referenced against the pool's cached song list by hash) —
+   informational only, doesn't block adding it again (it may still
+   have un-ranked difficulties worth picking up). */
+.pixel-search-row .pool-tag {
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  padding: 3px 6px;
+  color: var(--px-outline);
+  background: var(--px-gold);
+  flex-shrink: 0;
+}
+
+/* "+" add button on a search result — square, same hard-edge language
+   as every other button here (no border-radius anywhere on this site). */
+.pixel-add-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  background: var(--px-cyan-dark);
+  color: #eafcff;
+  cursor: pointer;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.25),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.35),
+    0 0 0 2px var(--px-outline);
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1), background 80ms steps(1);
+}
+
+.pixel-add-btn:hover {
+  transform: scale(1.15);
+}
+
+.pixel-add-btn:active {
+  transform: scale(0.9);
+}
+
+.pixel-add-btn.added {
+  background: #16a34a;
+  cursor: default;
+  transform: none;
+}
+
+.pixel-add-btn.added:hover {
+  transform: none;
+}
+
+/* One song already staged for ranking, in the list below the search
+   panel — same row shape as .pixel-search-row but with a remove ("x")
+   button instead of an add one, and its diff badges are always
+   expanded for picking (no separate "click to expand" step). */
+.pixel-staged-row {
+  padding: 10px 12px;
+  background: var(--px-outline);
+  box-shadow: 0 0 0 2px var(--px-outline), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.pixel-remove-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  background: #dc2626;
+  color: #fff0f0;
+  cursor: pointer;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.3),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.4),
+    0 0 0 2px var(--px-outline);
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pixel-remove-btn:hover {
+  transform: scale(1.15);
+}
+
+.pixel-remove-btn:active {
+  transform: scale(0.9);
+}
+
+/* Playlist file drop zone (RankNewMaps.tsx) — click or drag-and-drop a
+   .bplist/.json file onto it. Plain dashed-border affordances don't
+   exist in this hard-edge design system, so "droppable" is instead
+   read from the dotted background (matches .pixel-bg's page texture)
+   plus the outline color shift on hover/drag, same language as every
+   other interactive box on this page. */
+.pixel-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  color: #b7c0d6;
+  font-size: 12px;
+  background: var(--px-outline);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 10px 10px;
+  box-shadow: 0 0 0 3px var(--px-cyan-dark);
+  transition:
+    box-shadow 80ms steps(1),
+    background-color 80ms steps(1),
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pixel-dropzone:hover {
+  box-shadow: 0 0 0 3px var(--px-cyan);
+}
+
+/* A file dragged over the zone gets the same exaggerated "back out"
+   pop as everything else that reacts to you on this site — the color
+   swap alone read as a fairly quiet response to what's otherwise a
+   pretty deliberate action (dragging a file across the whole page). */
+.pixel-dropzone.dragging {
+  background-color: #171a30;
+  box-shadow: 0 0 0 3px var(--px-gold);
+  color: #eafcff;
+  transform: scale(1.03);
+}
+
+/* Toggle button for the manual paste-links fallback — same shape
+   language as .pixel-tab, styled a little quieter since it's a
+   secondary path now instead of the only way in. */
+.pixel-toggle-link {
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  color: var(--px-cyan);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: underline;
+}
+
+.pixel-toggle-link:hover {
+  color: #eafcff;
 }

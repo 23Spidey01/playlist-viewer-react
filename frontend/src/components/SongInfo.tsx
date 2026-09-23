@@ -8,7 +8,7 @@ import { characteristicLabels, characteristicIcons } from "./types";
 import logo from "../assets/Logo.png";
 import beatsaverIcon from "../assets/Icons/beatsaver.png";
 import beatleaderIcon from "../assets/Icons/beatleader.svg";
-import { askApiKey, confirmDialog, promptText } from "./dialogStore";
+import { askApiKey, alertDialog, confirmDialog, promptText } from "./dialogStore";
 import "./pixel-ui.css";
 
 function formatDuration(seconds: number) {
@@ -53,7 +53,7 @@ const SongInfo: React.FC = () => {
 
   const askKey = async () => {
     const key = await askApiKey();
-    if (!key) alert("No API key entered.");
+    if (!key) await alertDialog("No API key entered.");
     return key;
   };
 
@@ -81,13 +81,13 @@ const SongInfo: React.FC = () => {
       placeholder: "e.g. 8.5",
     });
     if (!rating) {
-      alert("No star rating entered.");
+      await alertDialog("No star rating entered.");
       return null;
     }
     rating = rating.replace(",", ".");
     const ratingNum = parseFloat(rating);
     if (isNaN(ratingNum) || ratingNum < 0) {
-      alert("Invalid star rating.");
+      await alertDialog("Invalid star rating.");
       return null;
     }
     const res = await fetch("http://localhost:3001/proxy/set_manual", {
@@ -116,17 +116,17 @@ const SongInfo: React.FC = () => {
       });
       const resultRank = await resRank.json();
       if (resultRank.status !== "success") {
-        alert("Error ranking: " + (resultRank.error || resultRank.status));
+        await alertDialog("Error ranking: " + (resultRank.error || resultRank.status));
         return done();
       }
       const resultSet = await setStarRating(key, formattedId);
       if (!resultSet) return done();
       if (resultSet.status === "success") {
-        alert("Difficulty ranked and star rating set!");
+        await alertDialog("Difficulty ranked and star rating set!");
         await recalcCR(key);
         window.location.reload();
       } else {
-        alert("Error setting star rating: " + (resultSet.error || resultSet.status));
+        await alertDialog("Error setting star rating: " + (resultSet.error || resultSet.status));
       }
       done();
     };
@@ -143,11 +143,11 @@ const SongInfo: React.FC = () => {
       });
       const result = await res.json();
       if (result.status === "success") {
-        alert("Difficulty unranked!");
+        await alertDialog("Difficulty unranked!");
         await recalcCR(key);
         window.location.reload();
       } else {
-        alert("Error: " + (result.error || result.status));
+        await alertDialog("Error: " + (result.error || result.status));
       }
       done();
     };
@@ -160,11 +160,11 @@ const SongInfo: React.FC = () => {
       const resultSet = await setStarRating(key, formattedId);
       if (!resultSet) return done();
       if (resultSet.status === "success") {
-        alert("Star rating set!");
+        await alertDialog("Star rating set!");
         await recalcCR(key);
         window.location.reload();
       } else {
-        alert("Error setting star rating: " + (resultSet.error || resultSet.status));
+        await alertDialog("Error setting star rating: " + (resultSet.error || resultSet.status));
       }
       done();
     };
@@ -204,8 +204,10 @@ const SongInfo: React.FC = () => {
       </div>
 
       <div className="w-full max-w-screen-2xl mx-auto px-6 pt-6 pb-9">
-        {/* Hero */}
-        <div className="pixel-pool-header">
+        {/* Hero — flies in from the bottom on load, same as the pool
+            page (see .pixel-page-flyin), followed by the section
+            header and then each characteristic card, staggered. */}
+        <div className="pixel-pool-header pixel-page-flyin">
           <div
             className="pixel-pool-header-cover"
             style={{ backgroundImage: `url(${song.versions?.[0]?.coverURL})` }}
@@ -266,7 +268,10 @@ const SongInfo: React.FC = () => {
         </div>
 
         {/* Section header */}
-        <div className="flex items-center gap-3 pb-3">
+        <div
+          className="pixel-page-flyin flex items-center gap-3 pb-3"
+          style={{ animationDelay: "0.1s" }}
+        >
           <span className="pixel-section-label">DIFFICULTIES</span>
           <div className="pixel-rule" />
           <span className="text-xs text-[#b7c0d6]">
@@ -277,13 +282,17 @@ const SongInfo: React.FC = () => {
 
         {/* One card per characteristic */}
         <div className="flex flex-col gap-3">
-          {Object.entries(grouped).map(([characteristic, diffs]) => {
+          {Object.entries(grouped).map(([characteristic, diffs], index) => {
             const rankedHere = diffs.filter(
               (d) => starRatings?.[characteristic]?.[d.difficulty] !== undefined,
             ).length;
 
             return (
-              <div key={characteristic} className="pixel-char-card">
+              <div
+                key={characteristic}
+                className="pixel-char-card pixel-page-flyin"
+                style={{ animationDelay: `${0.15 + Math.min(index, 12) * 0.06}s` }}
+              >
                 <div className="head">
                   {characteristicIcons[characteristic] && (
                     <img

@@ -38,13 +38,14 @@ export function renderFunnyHahaPaulsSongs(
             <h3 className="text-cyan-400 text-2xl font-extrabold tracking-wide drop-shadow">New in Pool</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {newSongs.map((song) => (
+            {newSongs.map((song, index) => (
               <div className="relative group" key={song.versions?.[0]?.hash || song.id}>
                 {/* Ribbon-Badge top right */}
                 <span className="absolute top-0 right-0 z-10 bg-cyan-500 text-white text-xs font-bold px-3 py-1 shadow-lg group-hover:scale-110 transition-transform select-none">
                   NEW
                 </span>
                 <SongCard
+                  index={index}
                   song={song}
                   starRatings={starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}}
                   poolId={poolId}
@@ -64,9 +65,10 @@ export function renderFunnyHahaPaulsSongs(
         </section>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {otherSongs.map((song) => (
+        {otherSongs.map((song, index) => (
           <SongCard
             key={song.versions?.[0]?.hash || song.id}
+            index={newSongs.length + index}
             song={song}
             starRatings={starRatingMap[song.versions?.[0]?.hash?.toUpperCase()] || {}}
             poolId={poolId}
