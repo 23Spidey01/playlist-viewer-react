@@ -1,9 +1,5 @@
 package com.example.hitbloqproxy;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
-
 import com.example.hitbloqproxy.apikey.UserApiKeyService;
 import com.example.hitbloqproxy.auth.RegistrationService;
 import com.example.hitbloqproxy.beatmap.BeatMap;
@@ -11,19 +7,27 @@ import com.example.hitbloqproxy.beatmap.BeatMapRepository;
 import com.example.hitbloqproxy.pool.Pool;
 import com.example.hitbloqproxy.pool.PoolRepository;
 import com.example.hitbloqproxy.poolentry.PoolBeatMapEntryService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
     @Value("${app.test-data.enabled}")
     private boolean enabled;
-
     private final BeatMapRepository beatMapRepository;
     private final PoolRepository poolRepository;
     private final PoolBeatMapEntryService poolBeatMapEntryService;
     private final RegistrationService registrationService;
     private final UserApiKeyService userApiKeyService;
 
-    public DataSeeder(BeatMapRepository beatMapRepository, PoolRepository poolRepository, PoolBeatMapEntryService poolBeatMapEntryService, RegistrationService registrationService, UserApiKeyService userApiKeyService) {
+    public DataSeeder(
+            BeatMapRepository beatMapRepository,
+            PoolRepository poolRepository,
+            PoolBeatMapEntryService poolBeatMapEntryService,
+            RegistrationService registrationService,
+            UserApiKeyService userApiKeyService
+    ) {
         this.beatMapRepository = beatMapRepository;
         this.poolRepository = poolRepository;
         this.poolBeatMapEntryService = poolBeatMapEntryService;

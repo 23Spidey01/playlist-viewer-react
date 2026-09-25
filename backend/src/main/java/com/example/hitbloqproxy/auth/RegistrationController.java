@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 public class RegistrationController {
-
     private final RegistrationService registrationService;
 
     public RegistrationController(RegistrationService registrationService) {
@@ -16,51 +15,28 @@ public class RegistrationController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-
         if (request.email() == null || request.email().isBlank()) {
-            return ResponseEntity
-                    .badRequest()
-                    .body(new ErrorResponse("Email must not be empty"));
+            return ResponseEntity.badRequest().body(new ErrorResponse("Email must not be empty"));
         }
 
         if (request.password() == null || request.password().isBlank()) {
-            return ResponseEntity
-                    .badRequest()
-                    .body(new ErrorResponse("Password must not be empty"));
+            return ResponseEntity.badRequest().body(new ErrorResponse("Password must not be empty"));
         }
 
         try {
-            registrationService.register(
-                    request.email(),
-                    request.password()
-            );
+            registrationService.register(request.email(), request.password());
 
             return ResponseEntity
-                    .status(HttpStatus.CREATED)
-                    .body(new RegisterResponse(
-                            "User registered successfully"
-                    ));
-
+                .status(HttpStatus.CREATED)
+                .body(new RegisterResponse("User registered successfully"));
         } catch (IllegalArgumentException exception) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ErrorResponse(exception.getMessage()));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(exception.getMessage()));
         }
     }
 
-    public record RegisterRequest(
-            String email,
-            String password
-    ) {
-    }
+    public record RegisterRequest(String email, String password) {}
 
-    public record RegisterResponse(
-            String message
-    ) {
-    }
+    public record RegisterResponse(String message) {}
 
-    public record ErrorResponse(
-            String message
-    ) {
-    }
+    public record ErrorResponse(String message) {}
 }

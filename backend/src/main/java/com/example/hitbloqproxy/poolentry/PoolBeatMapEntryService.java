@@ -1,16 +1,14 @@
 package com.example.hitbloqproxy.poolentry;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.example.hitbloqproxy.beatmap.BeatMap;
 import com.example.hitbloqproxy.beatmap.BeatMapRepository;
 import com.example.hitbloqproxy.pool.Pool;
 import com.example.hitbloqproxy.pool.PoolRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PoolBeatMapEntryService {
-
     private final BeatMapRepository beatMapRepository;
     private final PoolRepository poolRepository;
     private final PoolBeatMapEntryRepository poolBeatMapEntryRepository;
@@ -31,11 +29,14 @@ public class PoolBeatMapEntryService {
             throw new IllegalStateException("Beatmap is already in this pool.");
         }
 
-        BeatMap beatMap = beatMapRepository.findById(beatMapId)
-                .orElseThrow(() -> new IllegalArgumentException("Beatmap not found."));
+        BeatMap beatMap =
+                beatMapRepository
+            .findById(beatMapId)
+            .orElseThrow(() -> new IllegalArgumentException("Beatmap not found."));
 
-        Pool pool = poolRepository.findById(poolId)
-                .orElseThrow(() -> new IllegalArgumentException("Pool not found."));
+        Pool pool = poolRepository
+            .findById(poolId)
+            .orElseThrow(() -> new IllegalArgumentException("Pool not found."));
 
         PoolBeatMapEntry entry = new PoolBeatMapEntry();
         entry.setBeatMap(beatMap);

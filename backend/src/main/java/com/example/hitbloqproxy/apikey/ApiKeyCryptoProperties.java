@@ -6,11 +6,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "app.api-key-crypto")
 public class ApiKeyCryptoProperties {
-
     private String keyBase64;
-
     private String keyFile;
-
     private int keyVersion = 1;
 
     public String getKeyBase64() {

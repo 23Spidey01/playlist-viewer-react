@@ -4,6 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -17,29 +24,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-
 @RestController
 @RequestMapping("/proxy")
 public class HitbloqProxyController {
-
     private static final Logger log = LoggerFactory.getLogger(HitbloqProxyController.class);
     private static final URI HITBLOQ_API_BASE_URL = URI.create("https://hitbloq.com/api/");
-
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
     public HitbloqProxyController(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(20))
-                .build();
+        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
     }
 
     @PostMapping(value = "/unrank", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -81,59 +76,57 @@ public class HitbloqProxyController {
     }
 
     @GetMapping("/ladder/{pool_id}/players/{page}")
-    public ResponseEntity<?> ladderPlayers(
-        @PathVariable("pool_id") String poolId,
-        @PathVariable("page") String page
-    ) throws IOException, InterruptedException {
+    public ResponseEntity<?> ladderPlayers(@PathVariable("pool_id") String poolId, @PathVariable("page") String page)
+            throws IOException,
+            InterruptedException {
         return proxyGet("ladder/%s/players/%s".formatted(poolId, page));
     }
 
     private ResponseEntity<?> proxyPost(String hitbloqPath, String requestBody) throws IOException, InterruptedException {
         URI url = HITBLOQ_API_BASE_URL.resolve(hitbloqPath);
         // log.info("Proxying: POST {} {}", url, requestBody);
+        HttpRequest request = HttpRequest
+            .newBuilder(url)
+            .timeout(Duration.ofSeconds(30))
+            .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+            .header("Accept", MediaType.APPLICATION_JSON_VALUE)
+            .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+            .build();
 
-        HttpRequest request = HttpRequest.newBuilder(url)
-                .timeout(Duration.ofSeconds(30))
-                .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
-                .header("Accept", MediaType.APPLICATION_JSON_VALUE)
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response =
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         return parseLikeOriginalExpressProxy(response.body());
     }
 
     private ResponseEntity<?> proxyGet(String hitbloqPath) throws IOException, InterruptedException {
         URI url = HITBLOQ_API_BASE_URL.resolve(hitbloqPath);
         // log.info("Proxying: GET {}", url);
+        HttpRequest request = HttpRequest
+            .newBuilder(url)
+            .timeout(Duration.ofSeconds(30))
+            .header("Accept", MediaType.APPLICATION_JSON_VALUE)
+            .GET()
+            .build();
 
-        HttpRequest request = HttpRequest.newBuilder(url)
-                .timeout(Duration.ofSeconds(30))
-                .header("Accept", MediaType.APPLICATION_JSON_VALUE)
-                .GET()
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response =
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         return parseLikeOriginalExpressProxy(response.body());
     }
 
     /**
-     * Mirrors the original Express behavior:
-     * - If the upstream response body is valid JSON, return it as JSON.
-     * - If it is not valid JSON, return HTTP 500 with the raw text body.
+     * Mirrors the original Express behavior: - If the upstream response body is valid JSON, return it
+     * as JSON. - If it is not valid JSON, return HTTP 500 with the raw text body.
      */
     private ResponseEntity<?> parseLikeOriginalExpressProxy(String text) {
         // log.info("Hitbloq Response: {}", text);
-
         try {
             JsonNode json = objectMapper.readTree(text);
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(json);
+            return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(json);
         } catch (JsonProcessingException ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.TEXT_PLAIN)
-                    .body(text);
+            return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(text);
         }
     }
 
@@ -144,8 +137,9 @@ public class HitbloqProxyController {
         }
 
         log.error("Proxy error while handling {} {}", request.getMethod(), request.getRequestURI(), exception);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .contentType(MediaType.TEXT_PLAIN)
-                .body("Proxy error: " + exception.getMessage());
+        return ResponseEntity
+            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .contentType(MediaType.TEXT_PLAIN)
+            .body("Proxy error: " + exception.getMessage());
     }
 }
