@@ -1,5 +1,6 @@
 package com.example.hitbloqproxy.apikey;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -31,6 +32,34 @@ public class UserApiKeyController {
                 )
         );
     }
+
+        @GetMapping(params = "pool")
+        public ResponseEntity<List<DecryptedApiKeyResponse>>
+        getByPool(
+                @RequestParam String pool,
+                Authentication authentication
+        ) {
+
+                List<DecryptedApiKeyResponse> result =
+                        apiKeyService.findDecryptedByPool(
+                                requireAuthenticatedEmail(
+                                        authentication
+                                ),
+                                pool
+                        );
+
+                return ResponseEntity
+                        .ok()
+                        .cacheControl(
+                                CacheControl.noStore()
+                        )
+                        .header(
+                                "Pragma",
+                                "no-cache"
+                        )
+                        .body(result);
+        }
+
 
     @PostMapping
     public ResponseEntity<UserApiKeySummary> create(

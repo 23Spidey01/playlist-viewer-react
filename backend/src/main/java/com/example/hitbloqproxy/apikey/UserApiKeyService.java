@@ -195,6 +195,34 @@ public class UserApiKeyService {
         return cryptoService.decrypt(entity);
     }
 
+    @Transactional(readOnly = true)
+        public List<DecryptedApiKeyResponse> findDecryptedByPool(
+                String email,
+                String pool
+        ) {
+
+        UserAccount user =
+                requireUser(email);
+
+        String normalizedPool =
+                normalizePool(pool);
+
+        return apiKeyRepository
+                .findAllByUser_IdAndPoolOrderByCreatedAtDesc(
+                        user.getId(),
+                        normalizedPool
+                )
+                .stream()
+                .map(entity ->
+                        new DecryptedApiKeyResponse(
+                                entity.getId(),
+                                // entity.getPool(),
+                                cryptoService.decrypt(entity)
+                        )
+                )
+                .toList();
+        }
+
     private UserAccount requireUser(
             String email
     ) {
