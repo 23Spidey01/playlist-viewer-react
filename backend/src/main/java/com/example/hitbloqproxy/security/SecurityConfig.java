@@ -52,6 +52,7 @@ public class SecurityConfig {
             )
 
             .formLogin(form -> form
+                .loginPage("/login")
                 .loginProcessingUrl("/api/auth/login")
                 .usernameParameter("email")
 
