@@ -1,14 +1,16 @@
 package com.example.hitbloqproxy.beatmap;
 
+import java.util.List;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
+@ConditionalOnProperty("app.cache")
 @RequestMapping("/api/beatmaps")
 public class BeatMapController {
-
     private final BeatMapRepository beatMapRepository;
 
     public BeatMapController(BeatMapRepository beatMapRepository) {
@@ -22,7 +24,9 @@ public class BeatMapController {
 
     @GetMapping("/{id}")
     public BeatMap getBeatMapById(@PathVariable Long id) {
-        return beatMapRepository.findById(id).orElseThrow(() -> new BeatMapNotFoundException(id));
+        return beatMapRepository
+            .findById(id)
+            .orElseThrow(() -> new BeatMapNotFoundException(id));
     }
 
     @PostMapping

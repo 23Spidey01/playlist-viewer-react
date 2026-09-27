@@ -16,10 +16,13 @@ Run backend:
 ```bash
 cd backend/
 
+# The -Pfrontend flag is optional and skips the entire frontend pipeline
 # Release
-mvn spring-boot:run
+mvn spring-boot:run -Pfrontend
 # Dev
-mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
+mvn spring-boot:run "-Dspring-boot.run.profiles=dev" -Pfrontend
+# If there is a problem during the startup, try a clean compile
+mvn clean compile
 ```
 This auto build the frontend and launches the postgres docker container. The application is reachable via [localhost:3001](localhost:3001).
 

@@ -1,5 +1,3 @@
 package com.example.hitbloqproxy.beatmap;
 
-public record CreateBeatMapRequest(String name) {
-    
-}
+public record CreateBeatMapRequest(String name) {}
