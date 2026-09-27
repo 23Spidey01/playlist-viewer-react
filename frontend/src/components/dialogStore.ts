@@ -13,6 +13,8 @@
 // cancel or Escape, the entered/confirmed value otherwise (alertDialog
 // has nothing to cancel — every dismissal just resolves).
 
+import { getApiKeyForPool } from "./authApi";
+
 export interface ConfirmOptions {
   okLabel?: string;
   cancelLabel?: string;
@@ -98,7 +100,16 @@ export function promptText(
 }
 
 // Convenience wrapper for the recurring "enter the API key" prompt.
-export function askApiKey(): Promise<string | null> {
+// If poolId is given and the user has a saved key for that pool
+// (see ApiKeysPage.tsx / authApi.ts), it's used silently — no dialog
+// at all. Falls back to the manual-paste prompt otherwise (including
+// when not logged in, or logged in with no saved key for this pool).
+export async function askApiKey(poolId?: string): Promise<string | null> {
+  if (poolId) {
+    const saved = await getApiKeyForPool(poolId);
+    if (saved) return saved;
+  }
+
   return promptText("Please enter the API key for this pool:", {
     placeholder: "API key",
     okLabel: "Confirm",

@@ -268,6 +268,20 @@
     0 0 0 3px var(--px-cyan);
 }
 
+/* A type="number" input's native up/down spinner eats a big chunk of
+   width on an already-narrow field (e.g. the manual star rating box
+   in RankNewMaps.tsx) — barely any room left for the digits
+   themselves. Nobody's spinning to 20.69 one click at a time anyway. */
+.pixel-no-spinner::-webkit-outer-spin-button,
+.pixel-no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.pixel-no-spinner[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
 /* Search box in the topbar: same look as .pixel-input, but a flex
    container instead of a plain <input> so the ">" prompt glyph and
    the text field share one bordered box. */
@@ -480,6 +494,19 @@
     inset -3px -3px 0 var(--px-bg-dark),
     0 0 0 4px var(--px-outline),
     0 14px 0 var(--px-outline);
+}
+
+/* For a .pixel-card that holds a form (login, etc.) instead of acting
+   as a clickable navigation card — same bevel at rest, but the lift/
+   tilt/scale is exactly what you don't want while clicking into a
+   field to type, so it's switched off here. */
+.pixel-card.pixel-card-static:hover {
+  transform: none;
+  box-shadow:
+    inset 3px 3px 0 var(--px-bg-light),
+    inset -3px -3px 0 var(--px-bg-dark),
+    0 0 0 4px var(--px-outline),
+    0 6px 0 var(--px-outline);
 }
 
 /* Pressed: sinks below its resting position with a little squash. */
@@ -1241,6 +1268,66 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* "NEW" corner ribbon on a freshly-added song in the funny_haha_pauls
+   pool's "New in Pool" section (FunnyHahaPauls.tsx). Classic ribbon
+   technique: an overflow-hidden square clipped to the card's top-right
+   corner, with a wider strip rotated through it — only the diagonal
+   sliver inside the square actually shows. "NEW" is short enough that
+   this stays clear of the title in practice, unlike the longer
+   "DUPLICATE" tag elsewhere, which is why that one uses a banner
+   above the card instead of a corner overlay. pointer-events: none so
+   it never blocks clicking the card. Requires the wrapping element in
+   FunnyHahaPauls.tsx to be position: relative. */
+.pixel-new-ribbon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 76px;
+  height: 76px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+  /* Same easing as .pixel-card's own hover/active transform below, so
+     the two rules staying in lockstep actually looks in sync instead
+     of just timed the same. */
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The ribbon is a sibling of .pixel-card (see FunnyHahaPauls.tsx),
+   not nested inside it, so .pixel-card:hover's lift/scale/tilt never
+   touches it on its own — left the ribbon visibly behind while the
+   card moved out from under it. Mirroring the same transforms here,
+   triggered by hovering/pressing the shared wrapper, keeps them
+   moving together. */
+/* translateY carries over 1:1 (it's a plain pixel offset), but the
+   ribbon's own box is a fraction of the card's size, so the card's
+   own 3% scale barely reads on it — scaled up well past that number
+   so the two feel like comparable motion. No rotate here, unlike the
+   card: the ribbon's strip is already fixed at a 45deg diagonal
+   (below), and rotating the box on top of that throws its angle off
+   and reads as crooked rather than "lifted". */
+.pixel-new-ribbon-wrap:hover .pixel-new-ribbon {
+  transform: translateY(-8px) scale(1.12);
+}
+
+.pixel-new-ribbon-wrap:active .pixel-new-ribbon {
+  transform: translateY(3px) scale(0.92);
+}
+
+.pixel-new-ribbon span {
+  position: absolute;
+  top: 14px;
+  right: -28px;
+  width: 110px;
+  padding: 3px 0;
+  background: var(--px-cyan);
+  color: var(--px-outline);
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  text-align: center;
+  transform: rotate(45deg);
 }
 
 .pixel-missing-song-diffs .char-row {

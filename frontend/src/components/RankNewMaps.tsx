@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { askApiKey, alertDialog, confirmDialog } from "./dialogStore";
+import AccountMenu from "./AccountMenu";
 import { useSongPoolCache } from "./useSongPoolCache";
 import type { BSSongInfo, BSDifficulty } from "./types";
 import { characteristicIcons, characteristicLabels } from "./types";
@@ -568,7 +569,7 @@ const StagedSongCard: React.FC<{
                               step="0.01"
                               min="0"
                               placeholder="Stars"
-                              className="pixel-input w-16 text-xs px-2 py-1"
+                              className="pixel-input pixel-no-spinner w-24 text-xs px-2 py-1"
                               value={options.rating ?? ""}
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) =>
@@ -633,6 +634,14 @@ const RankNewMaps: React.FC = () => {
     Record<string, Record<string, { method: "automatic" | "manual"; rating?: string }>>
   >({});
   const [ranking, setRanking] = useState(false);
+  // What handleBatchRank is doing right now + how far through the
+  // selected difficulties it is — each diff can involve a retry with a
+  // multi-second delay (see postToPoolWithRetry), so a bare "Ranking..."
+  // gives no sense that anything's actually happening.
+  const [rankStage, setRankStage] = useState("");
+  const [rankProgress, setRankProgress] = useState<{ current: number; total: number } | null>(
+    null,
+  );
 
   // -- Playlist import (.bplist/.json) --
   const playlistFileInputRef = useRef<HTMLInputElement>(null);
@@ -933,12 +942,44 @@ const RankNewMaps: React.FC = () => {
     return { ok: res.ok && result?.status === "success", result };
   };
 
+  // Hitbloq doesn't know about a map it's never seen before, and
+  // rejects the very first call about it — on ANY of rank/set_automatic/
+  // set_manual, not just rank — with "invalid song ID". A rank call
+  // that then succeeds is apparently what makes Hitbloq go fetch/cache
+  // the map, but that doesn't mean the star-rating call right after it
+  // is safe: it can independently hit the exact same "just learned
+  // about this" gap and fail on its own, even though the rank right
+  // before it worked — leaving the map ranked but stuck at whatever
+  // default star rating Hitbloq gives an unrated map, with no error
+  // surfaced for the rank step itself. Retrying here, not just for
+  // rank, closes that gap.
+  const RETRY_DELAYS_MS = [1500, 3000];
+  const postToPoolWithRetry = async (path: string, body: unknown) => {
+    let result = await postToPool(path, body);
+    for (const delay of RETRY_DELAYS_MS) {
+      if (result.ok) break;
+      const message = (result.result?.error || result.result?.status || "").toLowerCase();
+      if (!message.includes("invalid song id")) break;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      result = await postToPool(path, body);
+    }
+    return result;
+  };
+
   const handleBatchRank = async () => {
-    const key = await askApiKey();
+    if (!poolId) return;
+    const key = await askApiKey(poolId);
     if (!key) return alertDialog("No API key entered.");
     setRanking(true);
     let count = 0;
+    let processed = 0;
     const errors: string[] = [];
+    const total = totalSelected;
+    setRankProgress({ current: 0, total });
+    const advance = () => {
+      processed++;
+      setRankProgress({ current: processed, total });
+    };
 
     for (const song of songs) {
       const hash = song.versions?.[0]?.hash?.toUpperCase();
@@ -947,11 +988,13 @@ const RankNewMaps: React.FC = () => {
         const [characteristic, difficulty] = diff.split("|");
         const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
         const label = `${song.metadata.songName} ${difficulty}`;
+        setRankStage(label);
 
         // 1. Rank
-        const rankResult = await postToPool("rank", { key, pool: poolId, song: formattedId });
+        const rankResult = await postToPoolWithRetry("rank", { key, pool: poolId, song: formattedId });
         if (!rankResult.ok) {
           errors.push(`${label}: ${rankResult.result?.error || rankResult.result?.status || "failed to rank"}`);
+          advance();
           continue;
         }
 
@@ -959,14 +1002,15 @@ const RankNewMaps: React.FC = () => {
         const options = diffOptions[song.id]?.[diff] || DEFAULT_DIFF_OPTIONS;
         let starResult;
         if (options.method === "automatic") {
-          starResult = await postToPool("set_automatic", { key, pool: poolId, song: formattedId });
+          starResult = await postToPoolWithRetry("set_automatic", { key, pool: poolId, song: formattedId });
         } else {
           const ratingNum = parseFloat(options.rating?.replace(",", ".") || "");
           if (isNaN(ratingNum) || ratingNum < 0) {
             errors.push(`${label}: invalid star rating, skipped`);
+            advance();
             continue;
           }
-          starResult = await postToPool("set_manual", {
+          starResult = await postToPoolWithRetry("set_manual", {
             key,
             pool: poolId,
             song: formattedId,
@@ -975,9 +1019,11 @@ const RankNewMaps: React.FC = () => {
         }
         if (!starResult.ok) {
           errors.push(`${label}: ${starResult.result?.error || starResult.result?.status || "failed to set star rating"}`);
+          advance();
           continue;
         }
         count++;
+        advance();
       }
     }
 
@@ -985,6 +1031,7 @@ const RankNewMaps: React.FC = () => {
     // ranked above.
     let crFailed = false;
     if (count > 0) {
+      setRankStage("Recalculating CR...");
       const crResult = await postToPool("recalculate_cr", { key, pool: poolId });
       crFailed = !crResult.ok;
       if (crFailed)
@@ -992,6 +1039,8 @@ const RankNewMaps: React.FC = () => {
     }
 
     setRanking(false);
+    setRankStage("");
+    setRankProgress(null);
 
     if (count === 0) {
       await alertDialog(
@@ -1053,6 +1102,7 @@ const RankNewMaps: React.FC = () => {
         >
           ◂ BACK TO POOL
         </Link>
+        <AccountMenu />
       </div>
 
       <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">
@@ -1372,6 +1422,35 @@ const RankNewMaps: React.FC = () => {
                   ? "Ranking..."
                   : `Rank ${totalSelected} Selected Difficult${totalSelected === 1 ? "y" : "ies"} & Recalculate CR`}
               </button>
+              {ranking && (
+                <div className="pixel-loading">
+                  <span className="pixel-font text-[10px] text-cyan-300">
+                    {rankStage || "Ranking..."}
+                  </span>
+                  <div className={`pixel-progress${rankProgress ? "" : " indeterminate"}`}>
+                    <div
+                      className="pixel-progress-fill"
+                      style={
+                        rankProgress
+                          ? {
+                              width: `${Math.min(
+                                100,
+                                Math.round(
+                                  (rankProgress.current / Math.max(rankProgress.total, 1)) * 100,
+                                ),
+                              )}%`,
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
+                  {rankProgress && (
+                    <span className="text-[11px] text-neutral-500">
+                      {rankProgress.current} / {rankProgress.total}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

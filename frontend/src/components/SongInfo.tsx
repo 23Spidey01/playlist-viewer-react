@@ -9,6 +9,7 @@ import logo from "../assets/Logo.png";
 import beatsaverIcon from "../assets/Icons/beatsaver.png";
 import beatleaderIcon from "../assets/Icons/beatleader.svg";
 import { askApiKey, alertDialog, confirmDialog, promptText } from "./dialogStore";
+import AccountMenu from "./AccountMenu";
 import "./pixel-ui.css";
 
 function formatDuration(seconds: number) {
@@ -52,7 +53,7 @@ const SongInfo: React.FC = () => {
   // ---- API handlers (unchanged from the previous version) ----------
 
   const askKey = async () => {
-    const key = await askApiKey();
+    const key = await askApiKey(poolId);
     if (!key) await alertDialog("No API key entered.");
     return key;
   };
@@ -201,6 +202,7 @@ const SongInfo: React.FC = () => {
         >
           ◂ BACK TO POOL
         </Link>
+        <AccountMenu />
       </div>
 
       <div className="w-full max-w-screen-2xl mx-auto px-6 pt-6 pb-9">

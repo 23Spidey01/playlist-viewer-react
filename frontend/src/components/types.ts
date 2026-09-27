@@ -119,7 +119,18 @@ export const diffMap: Record<string, string> = {
 export const charMap: Record<string, string> = {
   s: "Standard",
   sll: "Lawless",
+  // Hitbloq's actual OneSaber code is "s1s" — confirmed against live
+  // ranked-list data (maps with only a OneSaber difficulty, no
+  // Standard one, e.g. "Unholy"/"Cross Slash" in funny_haha_pauls).
+  // "sos" never once appears in that data; kept mapped too in case
+  // some other pool really does use it, but it looks like it was
+  // simply the wrong guess for this code all along. Without "s1s"
+  // mapped, a OneSaber ranked diff's characteristic fell back to the
+  // raw "s1s" string, which never matches a real diff's characteristic
+  // ("OneSaber") when SongCard looks up its star rating — so it just
+  // silently rendered as unranked everywhere, in every pool.
   sos: "OneSaber",
+  s1s: "OneSaber",
   sna: "NoArrows",
   s90: "90Degree",
   s360: "360Degree",

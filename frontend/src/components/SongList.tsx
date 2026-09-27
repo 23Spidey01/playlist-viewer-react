@@ -347,7 +347,7 @@ const SongList: React.FC<SongListProps> = ({
   };
 
   const handleRecalculateCR = async () => {
-    const key = await askApiKey();
+    const key = await askApiKey(poolId);
     if (!key) return alertDialog("No API key entered.");
     setLoading(true);
     setLoadStage("Recalculating CR...");
@@ -607,7 +607,7 @@ const SongList: React.FC<SongListProps> = ({
     onDone: () => void,
   ) => {
     if (entries.length === 0) return;
-    const key = await askApiKey();
+    const key = await askApiKey(poolId);
     if (!key) return alertDialog("No API key entered.");
     const proceed = await confirmDialog(
       scope === "all"
@@ -771,7 +771,7 @@ const SongList: React.FC<SongListProps> = ({
   // Rank every selected difficulty that is not ranked yet
   const rankAllSelected = async () => {
     if (!allSelectedAreUnranked) return;
-    const key = await askApiKey();
+    const key = await askApiKey(poolId);
     if (!key) return;
     let count = 0;
     const errors: string[] = [];
@@ -815,7 +815,7 @@ const SongList: React.FC<SongListProps> = ({
   // Unrank every selected difficulty (only allowed when all are currently ranked)
   const unrankAllSelected = async () => {
     if (!allSelectedAreRanked) return;
-    const key = await askApiKey();
+    const key = await askApiKey(poolId);
     if (!key) return;
     let count = 0;
     const errors: string[] = [];
@@ -879,7 +879,7 @@ const SongList: React.FC<SongListProps> = ({
         { okLabel: "Rank them first", cancelLabel: "Cancel" },
       );
       if (!proceed) return;
-      const rankKey = await askApiKey();
+      const rankKey = await askApiKey(poolId);
       if (!rankKey) return;
       let rankedFirstCount = 0;
       const rankFirstErrors: string[] = [];
@@ -910,7 +910,7 @@ const SongList: React.FC<SongListProps> = ({
       );
     }
 
-    const key = await askApiKey();
+    const key = await askApiKey(poolId);
     if (!key) return;
     const isAutomatic = await confirmDialog(
       "Calculate star rating automatically, or set it manually?",

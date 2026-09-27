@@ -13,6 +13,10 @@ import RankNewMaps from "./components/RankNewMaps";
 import logo from "./assets/Logo.png";
 import PoolCard from "./components/PoolCard";
 import { DialogHost } from "./components/Dialog";
+import { AuthProvider } from "./components/AuthContext";
+import AccountMenu from "./components/AccountMenu";
+import LoginPage from "./components/LoginPage";
+import ApiKeysPage from "./components/ApiKeysPage";
 import "./components/pixel-ui.css";
 
 interface PoolDetailed {
@@ -80,6 +84,8 @@ const TopBar: React.FC<{
       </span>
       Compare Pools
     </button>
+
+    <AccountMenu />
   </div>
 );
 
@@ -167,6 +173,7 @@ const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
         <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
           ◂ ALL POOLS
         </Link>
+        <AccountMenu />
         {editMode && (
           <div className="pixel-editmode-banner" aria-hidden="true">
             !EDIT MODE!
@@ -203,20 +210,24 @@ const App: React.FC = () => {
 
   return (
     <SongPoolProvider>
-      <DialogHost />
-      <Router>
-        <div className="min-h-screen pixel-bg font-sans">
-          <Routes>
-            <Route path="/" element={<PoolOverview pools={pools} />} />
-            <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
-            {/* SongInfo and RankNewMaps both bring their own topbar
-                (with breadcrumb + back link) and page container, so
-                they skip SubPageShell. */}
-            <Route path="/song/:id" element={<SongInfo />} />
-            <Route path="/pool/:poolId/rank-new" element={<RankNewMaps />} />
-          </Routes>
-        </div>
-      </Router>
+      <AuthProvider>
+        <DialogHost />
+        <Router>
+          <div className="min-h-screen pixel-bg font-sans">
+            <Routes>
+              <Route path="/" element={<PoolOverview pools={pools} />} />
+              <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
+              {/* SongInfo and RankNewMaps both bring their own topbar
+                  (with breadcrumb + back link) and page container, so
+                  they skip SubPageShell. */}
+              <Route path="/song/:id" element={<SongInfo />} />
+              <Route path="/pool/:poolId/rank-new" element={<RankNewMaps />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/api-keys" element={<ApiKeysPage />} />
+            </Routes>
+          </div>
+        </Router>
+      </AuthProvider>
     </SongPoolProvider>
   );
 };
