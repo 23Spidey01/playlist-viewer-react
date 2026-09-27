@@ -11,5 +11,5 @@ public class AuthController {
         return new CurrentUserResponse(authentication.getName());
     }
 
-    public record CurrentUserResponse(String email) {}
+    public record CurrentUserResponse(String username) {}
 }

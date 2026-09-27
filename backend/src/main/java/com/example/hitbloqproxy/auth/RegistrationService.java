@@ -15,17 +15,28 @@ public class RegistrationService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public void register(String email, String password) {
-        if (users.findByEmailIgnoreCase(email).isPresent()) {
-            throw new IllegalArgumentException("Email already registered");
+    public void register(String username, String email, String password) {
+        if (users.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, email).isPresent()) {
+            throw new IllegalArgumentException("Username or email already registered");
         }
 
         UserAccount user = new UserAccount();
 
-        user.setEmail(email.trim().toLowerCase());
+        user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setEnabled(true);
+        if (email != null) {
+            user.setEmail(email.trim().toLowerCase());
+        }
 
         users.save(user);
+    }
+
+    public void registerOnlyEmail(String email, String password) {
+        register(email, email, password);
+    }
+
+    public void registerOnlyUsername(String username, String password) {
+        register(username, null, password);
     }
 }
