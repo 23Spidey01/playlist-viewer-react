@@ -14,13 +14,6 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // /proxy/** (rank, unrank, recalculate_cr, ...) is a plain
-            // JSON API with no login required — the Hitbloq API key in
-            // the request body is what authorizes the action, not the
-            // caller's session/cookie, so CSRF protection (meant to
-            // stop a third-party site from riding a victim's cookie)
-            // doesn't apply here. Without this, every POST to /proxy/**
-            // gets rejected with a bare 403 before it ever reaches
             // Hitbloq, regardless of whether the API key is valid.
             .csrf(csrf -> csrf.ignoringRequestMatchers("/proxy/**"))
             .authorizeHttpRequests(auth -> auth
@@ -40,7 +33,7 @@ public class SecurityConfig {
             .formLogin(form -> form
                 .loginPage("/login")
                 .loginProcessingUrl("/api/auth/login")
-                .usernameParameter("email")
+                .usernameParameter("username")
                 .successHandler((request, response, authentication) -> {
                     response.setStatus(204);
                 })

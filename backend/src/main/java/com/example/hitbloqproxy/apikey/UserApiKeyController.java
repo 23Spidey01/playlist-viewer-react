@@ -20,7 +20,7 @@ public class UserApiKeyController {
 
     @GetMapping
     public List<UserApiKeySummary> getAll(Authentication authentication) {
-        return apiKeyService.findAll(requireAuthenticatedEmail(authentication));
+        return apiKeyService.findAll(requireAuthenticatedLogin(authentication));
     }
 
     @GetMapping(params = "pool")
@@ -29,7 +29,7 @@ public class UserApiKeyController {
             Authentication authentication
     ) {
         List<DecryptedApiKeyResponse> result =
-                apiKeyService.findDecryptedByPool(requireAuthenticatedEmail(authentication), pool);
+                apiKeyService.findDecryptedByPool(requireAuthenticatedLogin(authentication), pool);
 
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Pragma", "no-cache").body(result);
     }
@@ -37,7 +37,7 @@ public class UserApiKeyController {
     @PostMapping
     public ResponseEntity<UserApiKeySummary> create(@RequestBody ApiKeyRequest request, Authentication authentication) {
         UserApiKeySummary created =
-                apiKeyService.create(requireAuthenticatedEmail(authentication), request.pool(), request.apiKey());
+                apiKeyService.create(requireAuthenticatedLogin(authentication), request.pool(), request.apiKey());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -48,17 +48,17 @@ public class UserApiKeyController {
             @RequestBody ApiKeyRequest request,
             Authentication authentication
     ) {
-        return apiKeyService.update(requireAuthenticatedEmail(authentication), id, request.pool(), request.apiKey());
+        return apiKeyService.update(requireAuthenticatedLogin(authentication), id, request.pool(), request.apiKey());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id, Authentication authentication) {
-        apiKeyService.delete(requireAuthenticatedEmail(authentication), id);
+        apiKeyService.delete(requireAuthenticatedLogin(authentication), id);
 
         return ResponseEntity.noContent().build();
     }
 
-    private String requireAuthenticatedEmail(Authentication authentication) {
+    private String requireAuthenticatedLogin(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }

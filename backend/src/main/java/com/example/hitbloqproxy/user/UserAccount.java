@@ -14,7 +14,9 @@ public class UserAccount {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-    @Column(nullable = false, length = 320)
+    @Column(unique = true, nullable = false, length = 63)
+    private String username;
+    @Column(unique = true, nullable = true, length = 320)
     private String email;
     @Column(name = "password_hash", length = 255)
     private String passwordHash;

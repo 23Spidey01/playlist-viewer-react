@@ -10,8 +10,22 @@ The backend exposes REST endpoints for proxying Hitbloq-related API calls and al
 
 The React frontend is built with Vite and can be served directly by Spring Boot from the `src/main/resources/static` directory. During development, the frontend can also run separately via the Vite dev server while forwarding API requests to the Spring Boot backend.
 
+## Production
+Set the enviroment variables (example):
+```json
+{
+    "API_KEY_ENCRYPTION_KEY_BASE64": "hHvWqlA4lH9jF3a8Fn3M5hNdb6i4Brclb7nDfLe4S8Y=",
+    "POSTGRES_DB": "hitbloq",
+    "POSTGRES_USER": "hitbloq_prod",
+    "POSTGRES_PASSWORD": "passwd"
+}
+```
+Run docker compose at root:
+```bash
+docker compose -f docker-compose.full.yml up --build
+```
 
-## Backend (mandetory: do this first)
+## Backend dev
 Run backend:
 ```bash
 cd backend/

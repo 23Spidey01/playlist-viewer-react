@@ -17,14 +17,14 @@ public class DatabaseUserDetailsService implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String email) {
+    public UserDetails loadUserByUsername(String login) {
         UserAccount user = userRepository
-            .findByEmailIgnoreCase(email)
+            .findByUsernameIgnoreCaseOrEmailIgnoreCase(login, login)
             .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         return User
             .builder()
-            .username(user.getEmail())
+            .username(user.getUsername())
             .password(user.getPasswordHash())
             .disabled(!user.isEnabled())
             .roles("USER")

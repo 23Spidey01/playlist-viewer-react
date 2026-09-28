@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: simple-postgres
+    container_name: simple-postgres-dev
     restart: unless-stopped
     environment:
       POSTGRES_DB: appdb

@@ -15,8 +15,10 @@ public class RegistrationController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-        if (request.email() == null || request.email().isBlank()) {
-            return ResponseEntity.badRequest().body(new ErrorResponse("Email must not be empty"));
+        if (request.email() == null && request.username() == null) {
+            return ResponseEntity
+                .badRequest()
+                .body(new ErrorResponse("Username and Email must not be empty at the same time"));
         }
 
         if (request.password() == null || request.password().isBlank()) {
@@ -24,7 +26,11 @@ public class RegistrationController {
         }
 
         try {
-            registrationService.register(request.email(), request.password());
+            if (request.email() == null || request.email().isBlank()) {
+                registrationService.register(request.username(), null, request.password());
+            } else {
+                registrationService.register(request.username(), request.email(), request.password());
+            }
 
             return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -34,7 +40,7 @@ public class RegistrationController {
         }
     }
 
-    public record RegisterRequest(String email, String password) {}
+    public record RegisterRequest(String username, String email, String password) {}
 
     public record RegisterResponse(String message) {}
 
