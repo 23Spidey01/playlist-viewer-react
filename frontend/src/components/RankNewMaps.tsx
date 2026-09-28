@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { askApiKey, alertDialog, confirmDialog } from "./dialogStore";
+import { askApiKey, alertDialog, confirmDialog, promptText } from "./dialogStore";
 import AccountMenu from "./AccountMenu";
 import { useSongPoolCache } from "./useSongPoolCache";
 import type { BSSongInfo, BSDifficulty } from "./types";
@@ -14,10 +14,6 @@ const parseBeatSaverId = (urlOrId: string) => {
   return match ? match[1] : urlOrId.trim();
 };
 
-const DEFAULT_DIFF_OPTIONS: { method: "automatic" | "manual"; rating: string } = {
-  method: "automatic",
-  rating: "",
-};
 
 export interface BSMapper {
   id: number;
@@ -42,9 +38,18 @@ async function fetchBeatSaverSearchPage(
   query: string,
   includeAI: boolean,
 ): Promise<BSSongInfo[]> {
+  // BeatSaver's automapper filter isn't a plain "show/hide AI maps"
+  // toggle: confirmed empirically (real search responses, not docs)
+  // that automapper=false means "ONLY AI maps", automapper=true means
+  // "normal maps, with AI ones mixed back in when they're relevant",
+  // and omitting it entirely is the cleanest "exclude AI" — closer to
+  // 0% AI than automapper=true's small leak. So this isn't a boolean
+  // pass-through: only send the param at all once the box is actually
+  // checked.
+  const automapperParam = includeAI ? "&automapper=true" : "";
   const url =
     `https://api.beatsaver.com/search/text/${page}?q=${encodeURIComponent(query.trim())}` +
-    `&sortOrder=${query.trim() ? "Relevance" : "Latest"}&automapper=${includeAI}`;
+    `&sortOrder=${query.trim() ? "Relevance" : "Latest"}${automapperParam}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`BeatSaver search failed: ${res.status}`);
   const data = await res.json();
@@ -396,62 +401,81 @@ const MapResultRow: React.FC<{
   highlightWords: string[];
   onAdd: () => void;
   index?: number;
-}> = ({ song, added, inPool, highlightWords, onAdd, index = 0 }) => (
-  <div
-    className={`pixel-search-row pixel-page-flyin${added ? " added" : ""}`}
-    style={{ animationDelay: `${0.2 + Math.min(index, 16) * 0.03}s` }}
-  >
-    <img
-      src={song.versions?.[0]?.coverURL}
-      alt={song.metadata.songName}
-      className="pixel-cover w-12 h-12 object-cover shrink-0"
-    />
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-cyan-200 truncate">
-          {highlightWords.length > 0
-            ? highlightQueryMatches(song.metadata.songName, highlightWords)
-            : song.metadata.songName}
-        </span>
-        {inPool && <span className="pool-tag">IN POOL</span>}
-      </div>
-      <div className="text-xs text-[#b7c0d6] truncate">
-        {highlightWords.length > 0
-          ? highlightQueryMatches(song.metadata.songAuthorName, highlightWords)
-          : song.metadata.songAuthorName}
-      </div>
-      <div className="text-[11px] text-[#6a7690] truncate">
-        mapped by{" "}
-        {highlightWords.length > 0
-          ? highlightQueryMatches(song.uploader?.name || "", highlightWords)
-          : song.uploader?.name}{" "}
-        · {song.versions?.[0]?.diffs?.length ?? 0} diffs
-      </div>
-    </div>
-    <button
-      className={`pixel-add-btn${added ? " added" : ""}`}
-      onClick={onAdd}
-      disabled={added}
-      title={added ? "Already queued" : "Add to rank queue"}
-    >
-      {added ? "✓" : "+"}
-    </button>
-  </div>
-);
+}> = ({ song, added, inPool, highlightWords, onAdd, index = 0 }) => {
+  // One dot per difficulty actually on this map (not per diff — a map
+  // with Standard+OneSaber Expert only shows one "Expert" dot, not
+  // two), in a fixed order so the same difficulty always lands in the
+  // same spot across different rows.
+  const availableDiffs = Array.from(
+    new Set((song.versions?.[0]?.diffs || []).map((d) => d.difficulty)),
+  ).sort(
+    (a, b) =>
+      ["Easy", "Normal", "Hard", "Expert", "ExpertPlus"].indexOf(a) -
+      ["Easy", "Normal", "Hard", "Expert", "ExpertPlus"].indexOf(b),
+  );
 
-// One queued song, laid out the same way SongInfo.tsx's difficulty
-// list is — a card per characteristic, difficulty tiles inside — so
-// picking what to rank here looks and feels like the page you'll land
-// on to actually rank it, instead of a flat, unrelated list of chips.
+  return (
+    <div
+      className={`pixel-search-row pixel-page-flyin${added ? " added" : ""}`}
+      style={{ animationDelay: `${0.2 + Math.min(index, 16) * 0.03}s` }}
+    >
+      <img
+        src={song.versions?.[0]?.coverURL}
+        alt={song.metadata.songName}
+        className="pixel-cover w-12 h-12 object-cover shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-cyan-200 truncate">
+            {highlightWords.length > 0
+              ? highlightQueryMatches(song.metadata.songName, highlightWords)
+              : song.metadata.songName}
+          </span>
+          {inPool && <span className="pool-tag">IN POOL</span>}
+        </div>
+        <div className="text-xs text-[#b7c0d6] truncate">
+          {highlightWords.length > 0
+            ? highlightQueryMatches(song.metadata.songAuthorName, highlightWords)
+            : song.metadata.songAuthorName}
+        </div>
+        <div className="text-[11px] text-[#6a7690] truncate">
+          mapped by{" "}
+          {highlightWords.length > 0
+            ? highlightQueryMatches(song.uploader?.name || "", highlightWords)
+            : song.uploader?.name}
+        </div>
+        <div className="pixel-diff-dots">
+          {availableDiffs.map((d) => (
+            <span key={d} className={`pixel-diff-dot diff-${d}`} title={d} />
+          ))}
+        </div>
+      </div>
+      <button
+        className={`pixel-add-btn${added ? " added" : ""}`}
+        onClick={onAdd}
+        disabled={added}
+        title={added ? "Already queued" : "Add to rank queue"}
+      >
+        {added ? "✓" : "+"}
+      </button>
+    </div>
+  );
+};
+
+// One queued song in the sticky rank-queue sidebar. Compact: each
+// difficulty is a small badge (same .pixel-badge/.pixel-badge-
+// selectable pills SongCard.tsx's own diff list uses), not a full
+// tile — a selected one just widens to fit an inline rating box.
+// That box IS the automatic/manual choice: left empty (shows the
+// grayed-out "AUTO" placeholder), Hitbloq calculates the rating
+// itself; typed a number, that's used as a manual rating instead. No
+// separate automatic/manual dropdown to keep in sync with it.
 const StagedSongCard: React.FC<{
   song: BSSongInfo;
   selectedDiffs: string[];
-  diffOptions: Record<string, { method: "automatic" | "manual"; rating?: string }>;
+  diffOptions: Record<string, string>;
   onToggleDiff: (diffKey: string) => void;
-  onOptionsChange: (
-    diffKey: string,
-    options: { method: "automatic" | "manual"; rating?: string },
-  ) => void;
+  onOptionsChange: (diffKey: string, rating: string) => void;
   onRemove: () => void;
   index?: number;
 }> = ({
@@ -470,7 +494,7 @@ const StagedSongCard: React.FC<{
 
   return (
     <div
-      className="pixel-staged-row pixel-page-flyin flex flex-col gap-3"
+      className="pixel-queue-card pixel-page-flyin"
       // Each newly-added song pops into the queue with its own quick
       // fly-in, capped so adding a big batch (e.g. "Add All New" from
       // a playlist) doesn't take forever to finish landing.
@@ -480,113 +504,68 @@ const StagedSongCard: React.FC<{
         <img
           src={song.versions?.[0]?.coverURL}
           alt={song.metadata.songName}
-          className="pixel-cover w-14 h-14 object-cover shrink-0"
+          className="pixel-cover w-10 h-10 object-cover shrink-0"
         />
         <div className="flex-1 min-w-0">
           <div className="text-sm text-cyan-200 truncate">{song.metadata.songName}</div>
-          <div className="text-xs text-[#b7c0d6] truncate">{song.metadata.songAuthorName}</div>
+          <div className="text-[11px] text-[#6a7690]">
+            {selectedDiffs.length} selected
+          </div>
         </div>
-        <span className="text-xs text-[#6a7690] shrink-0">{selectedDiffs.length} selected</span>
         <button className="pixel-remove-btn" onClick={onRemove} title="Remove from queue">
           ✕
         </button>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {Object.entries(grouped).map(([characteristic, characteristicDiffs]) => {
-          const selectedHere = characteristicDiffs.filter((d) =>
-            selectedDiffs.includes(`${characteristic}|${d.difficulty}`),
-          ).length;
-          return (
-            <div key={characteristic} className="pixel-char-card">
-              <div className="head">
-                {characteristicIcons[characteristic] && (
-                  <img src={characteristicIcons[characteristic]} alt={characteristic} />
-                )}
-                <span className="pixel-font text-[10px] text-cyan-300">
-                  {characteristicLabels[characteristic] || characteristic}
+      {Object.entries(grouped).map(([characteristic, characteristicDiffs]) => (
+        <div key={characteristic} className="pixel-queue-char-row">
+          {characteristicIcons[characteristic] && (
+            <img
+              src={characteristicIcons[characteristic]}
+              alt={characteristicLabels[characteristic] || characteristic}
+              title={characteristicLabels[characteristic] || characteristic}
+            />
+          )}
+          <div className="diffs">
+            {characteristicDiffs.map((diff) => {
+              const diffKey = `${characteristic}|${diff.difficulty}`;
+              const checked = selectedDiffs.includes(diffKey);
+              const rating = diffOptions[diffKey] ?? "";
+              return (
+                <span
+                  key={diffKey}
+                  className={`pixel-badge diff-${diff.difficulty} pixel-badge-selectable${checked ? " selected" : ""}`}
+                  onClick={() => onToggleDiff(diffKey)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onToggleDiff(diffKey);
+                    }
+                  }}
+                >
+                  {diff.difficulty}
+                  {checked && (
+                    // Stopping propagation (not the whole badge) so
+                    // typing here doesn't also deselect the diff —
+                    // clicking the badge text itself still does.
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="AUTO"
+                      className="pixel-input pixel-badge-inline-input"
+                      value={rating}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => onOptionsChange(diffKey, e.target.value)}
+                    />
+                  )}
                 </span>
-                <span className="text-[11px] text-[#b7c0d6]">
-                  {selectedHere} of {characteristicDiffs.length} selected
-                </span>
-              </div>
-              <div className="body">
-                {characteristicDiffs.map((diff) => {
-                  const diffKey = `${characteristic}|${diff.difficulty}`;
-                  const checked = selectedDiffs.includes(diffKey);
-                  const options = diffOptions[diffKey] || DEFAULT_DIFF_OPTIONS;
-                  return (
-                    <div
-                      key={diffKey}
-                      className={`pixel-diff-tile selectable diff-${diff.difficulty}${checked ? " selected" : ""}`}
-                      onClick={() => onToggleDiff(diffKey)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onToggleDiff(diffKey);
-                        }
-                      }}
-                    >
-                      <div className="row">
-                        <span className="label">{diff.difficulty}</span>
-                        <div className="actions">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            readOnly
-                            tabIndex={-1}
-                            className="w-3.5 h-3.5 accent-cyan-400 pointer-events-none"
-                          />
-                        </div>
-                      </div>
-                      {checked && (
-                        // Stopping propagation on just the <select>/<input>
-                        // below (not this whole row) so clicking the
-                        // dropdown or the stars field doesn't also
-                        // deselect the tile — but clicking anywhere else
-                        // in this lower area (the gaps around them) still
-                        // does, same as the label row above.
-                        <div className="stats">
-                          <select
-                            className="pixel-select text-xs px-2 py-1"
-                            value={options.method}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) =>
-                              onOptionsChange(diffKey, {
-                                ...options,
-                                method: e.target.value as "automatic" | "manual",
-                              })
-                            }
-                          >
-                            <option value="automatic">Automatic</option>
-                            <option value="manual">Manual</option>
-                          </select>
-                          {options.method === "manual" && (
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="Stars"
-                              className="pixel-input pixel-no-spinner w-24 text-xs px-2 py-1"
-                              value={options.rating ?? ""}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) =>
-                                onOptionsChange(diffKey, { ...options, rating: e.target.value })
-                              }
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
@@ -600,8 +579,13 @@ const RankNewMaps: React.FC = () => {
   //    copy-pasting links. Empty query browses the latest uploads
   //    instead of showing nothing, so there's always something to pick
   //    from without typing anything first. --
+  const [activeTab, setActiveTab] = useState<"search" | "import">("search");
   const [query, setQuery] = useState("");
   const [includeAI, setIncludeAI] = useState(false);
+  // Mirrors the playlist panel's own "only show maps not already in
+  // this pool" checkbox, but as a toggle button for the search panel —
+  // see poolHashes/isNewToPool below for the actual check.
+  const [hideInPool, setHideInPool] = useState(false);
   const [results, setResults] = useState<BSSongInfo[]>([]);
   const [resultsPage, setResultsPage] = useState(0);
   const [resultsLoading, setResultsLoading] = useState(false);
@@ -630,9 +614,12 @@ const RankNewMaps: React.FC = () => {
   //    fallback below. --
   const [songs, setSongs] = useState<BSSongInfo[]>([]);
   const [selected, setSelected] = useState<Record<string, string[]>>({});
-  const [diffOptions, setDiffOptions] = useState<
-    Record<string, Record<string, { method: "automatic" | "manual"; rating?: string }>>
-  >({});
+  // song.id -> diffKey -> rating text. Empty (or missing) means
+  // automatic — Hitbloq calculates the rating itself; a non-empty
+  // value is used as a manual rating instead. No separate automatic/
+  // manual flag: whether the box has something typed in it *is* the
+  // choice.
+  const [diffOptions, setDiffOptions] = useState<Record<string, Record<string, string>>>({});
   const [ranking, setRanking] = useState(false);
   // What handleBatchRank is doing right now + how far through the
   // selected difficulties it is — each diff can involve a retry with a
@@ -880,7 +867,7 @@ const RankNewMaps: React.FC = () => {
     setSelected((old) => ({ ...old, [song.id]: toSelect }));
     setDiffOptions((old) => ({
       ...old,
-      [song.id]: Object.fromEntries(toSelect.map((key) => [key, DEFAULT_DIFF_OPTIONS])),
+      [song.id]: Object.fromEntries(toSelect.map((key) => [key, ""])),
     }));
   };
 
@@ -908,6 +895,43 @@ const RankNewMaps: React.FC = () => {
     setSongs([]);
     setSelected({});
     setDiffOptions({});
+  };
+
+  // Bulk-overwrites the rating box for every difficulty currently
+  // selected across the whole queue — a one-shot "apply now" action,
+  // not a default that only affects future picks (that's what this
+  // replaced; nothing here touches diffs picked after this runs).
+  const handleSetRatingForAll = async () => {
+    const selectedCount = Object.values(selected).reduce((sum, d) => sum + d.length, 0);
+    if (selectedCount === 0) return;
+
+    const input = await promptText(
+      `Set a star rating for all ${selectedCount} selected difficult${selectedCount === 1 ? "y" : "ies"}:`,
+      { placeholder: "e.g. 6.5" },
+    );
+    if (input === null) return;
+
+    const trimmed = input.trim();
+    if (trimmed) {
+      const ratingNum = parseFloat(trimmed.replace(",", "."));
+      if (isNaN(ratingNum) || ratingNum < 0) {
+        await alertDialog("Enter a valid star rating (or leave it empty for Automatic).");
+        return;
+      }
+    }
+
+    setDiffOptions((old) => {
+      const next = { ...old };
+      for (const song of songs) {
+        const diffKeys = selected[song.id] || [];
+        if (diffKeys.length === 0) continue;
+        next[song.id] = { ...next[song.id] };
+        for (const diffKey of diffKeys) {
+          next[song.id][diffKey] = trimmed;
+        }
+      }
+      return next;
+    });
   };
 
   // Rank all selected difficulties — unchanged from before; only where
@@ -998,13 +1022,14 @@ const RankNewMaps: React.FC = () => {
           continue;
         }
 
-        // 2. Set star rating
-        const options = diffOptions[song.id]?.[diff] || DEFAULT_DIFF_OPTIONS;
+        // 2. Set star rating — an empty box means automatic; anything
+        // typed in it is used as a manual rating instead.
+        const ratingText = (diffOptions[song.id]?.[diff] ?? "").trim();
         let starResult;
-        if (options.method === "automatic") {
+        if (!ratingText) {
           starResult = await postToPoolWithRetry("set_automatic", { key, pool: poolId, song: formattedId });
         } else {
-          const ratingNum = parseFloat(options.rating?.replace(",", ".") || "");
+          const ratingNum = parseFloat(ratingText.replace(",", "."));
           if (isNaN(ratingNum) || ratingNum < 0) {
             errors.push(`${label}: invalid star rating, skipped`);
             advance();
@@ -1069,6 +1094,7 @@ const RankNewMaps: React.FC = () => {
       ? query.trim().toLowerCase().split(/\s+/).filter(Boolean)
       : [];
   const pastedPlaylistId = extractBeatSaverPlaylistId(query.trim());
+  const visibleResults = hideInPool ? results.filter(isNewToPool) : results;
 
   return (
     <>
@@ -1106,353 +1132,390 @@ const RankNewMaps: React.FC = () => {
       </div>
 
       <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">
-        <div className="max-w-5xl mx-auto flex flex-col gap-6">
+        <div className="max-w-7xl mx-auto flex flex-col gap-6">
           <h2 className="pixel-font text-base sm:text-lg text-cyan-300 pixel-page-flyin">
             RANK NEW MAPS
           </h2>
 
-          {/* Playlist import — pulls every song out of a .bplist/.json
-              playlist file (BeatSaver, GuildSaber, PlaylistManager, etc.
-              all export this same format) instead of adding maps one by
-              one. Sits above the search panel on purpose: with a long list
-              of search results below it, this would otherwise take a lot
-              of scrolling to ever notice was there at all.
-              Same page-wide fly-in language as every other page (see
-              .pixel-page-flyin) — this page previously had none at all,
-              panels and rows just appeared instantly on load. */}
-          <div
-            className="pixel-rank-panel flex flex-col gap-4 pixel-page-flyin"
-            style={{ animationDelay: "0.08s" }}
-          >
-            <span className="pixel-section-label">IMPORT A PLAYLIST</span>
-            <div
-              className={`pixel-dropzone${isDraggingPlaylist ? " dragging" : ""}`}
-              onClick={() => playlistFileInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDraggingPlaylist(true);
-              }}
-              onDragLeave={() => setIsDraggingPlaylist(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDraggingPlaylist(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) handlePlaylistFile(file);
-              }}
-            >
-              <span>
-                {playlistLoading
-                  ? "Reading playlist..."
-                  : "Drop a .bplist/.json playlist file here, or click to browse"}
-              </span>
-              <input
-                ref={playlistFileInputRef}
-                type="file"
-                accept=".bplist,.json,application/json"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handlePlaylistFile(file);
-                  e.target.value = "";
-                }}
-              />
-            </div>
-
-            {playlistError && <p className="text-xs text-red-400">{playlistError}</p>}
-
-            {playlist && (
-              <>
-                <div className="flex items-center gap-3">
-                  {playlist.image && (
-                    <img
-                      src={playlist.image}
-                      alt={playlist.title}
-                      className="pixel-cover w-12 h-12 object-cover shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-cyan-200 truncate">{playlist.title}</div>
-                    {playlist.author && (
-                      <div className="text-xs text-[#b7c0d6] truncate">by {playlist.author}</div>
-                    )}
-                  </div>
-                  <button className="pixel-toggle-link" onClick={() => setPlaylist(null)}>
-                    ✕ clear
-                  </button>
-                </div>
-
-                {playlist.unresolvedCount > 0 && (
-                  <p className="text-xs text-[#6a7690]">
-                    {playlist.unresolvedCount} song{playlist.unresolvedCount === 1 ? "" : "s"} from
-                    this playlist couldn't be found on BeatSaver (deleted, or a hash mismatch).
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <label className="flex items-center gap-2 text-xs text-[#b7c0d6] select-none cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showOnlyNewFromPlaylist}
-                      onChange={(e) => setShowOnlyNewFromPlaylist(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-cyan-400"
-                    />
-                    Only show maps not already in this pool
-                  </label>
-                  {newFromPlaylist.length > 0 && (
-                    <button
-                      className="pixel-btn secondary"
-                      onClick={() => newFromPlaylist.forEach(addSongFromPlaylist)}
-                    >
-                      Add All New ({newFromPlaylist.length})
-                    </button>
-                  )}
-                </div>
-                <p className="text-[11px] text-[#6a7690]">
-                  Difficulties highlighted in the playlist are auto-selected when a song's added.
-                </p>
-
-                <div className="flex flex-col gap-2">
-                  {visiblePlaylistSongs.length === 0 && (
-                    <p className="text-xs text-[#6a7690]">
-                      {showOnlyNewFromPlaylist
-                        ? "Every map in this playlist is already in the pool."
-                        : "No maps resolved from this playlist."}
-                    </p>
-                  )}
-                  {visiblePlaylistSongs.map((song, index) => {
-                    const hash = song.versions?.[0]?.hash?.toUpperCase();
-                    return (
-                      <MapResultRow
-                        key={song.id}
-                        index={index}
-                        song={song}
-                        added={stagedIds.has(song.id)}
-                        inPool={hash ? poolHashes.has(hash) : false}
-                        highlightWords={[]}
-                        onAdd={() => addSongFromPlaylist(song)}
-                      />
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Search / browse panel — the whole point: find maps without
-              ever leaving this page. */}
-          <div
-            className="pixel-rank-panel flex flex-col gap-4 pixel-page-flyin"
-            style={{ animationDelay: "0.16s" }}
-          >
-            <span className="pixel-section-label">FIND MAPS ON BEATSAVER</span>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="pixel-searchbox flex-1 min-w-[240px]">
-                <span className="prompt">&gt;</span>
-                <input
-                  type="text"
-                  placeholder="Search by song/mapper, or paste a BeatSaver link/ID... (leave empty to browse latest uploads)"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setForceTextSearch(false);
-                  }}
-                  onPaste={(e) => {
-                    // A plain single-line <input> silently mangles a
-                    // multi-line paste (several links/IDs, one per line —
-                    // the old paste-a-list textarea's use case) — browsers
-                    // strip or collapse the newlines inconsistently. Read
-                    // the clipboard ourselves and join lines with spaces so
-                    // looksLikeIdOrLink's tokenizing sees every line
-                    // intact, regardless of the browser's own behavior.
-                    const text = e.clipboardData.getData("text");
-                    if (/[\r\n]/.test(text)) {
-                      e.preventDefault();
-                      const joined = text
-                        .split(/\r?\n/)
-                        .map((line) => line.trim())
-                        .filter(Boolean)
-                        .join(" ");
-                      setQuery(joined);
-                      setForceTextSearch(false);
-                    }
-                  }}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-xs text-[#b7c0d6] select-none cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeAI}
-                  onChange={(e) => setIncludeAI(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-cyan-400"
-                />
-                Include AI-generated maps
-              </label>
-            </div>
-
-            {mapper && (
-              <div className="flex items-center gap-3">
-                <img
-                  src={mapper.avatar}
-                  alt={mapper.name}
-                  className="pixel-cover w-8 h-8 object-cover shrink-0"
-                />
-                <span className="text-xs text-[#b7c0d6]">
-                  Showing every map uploaded by{" "}
-                  <span className="text-cyan-200 font-semibold">{mapper.name}</span>
-                </span>
-                <button className="pixel-toggle-link" onClick={() => setForceTextSearch(true)}>
-                  search maps instead
+          <div className="pixel-ranknew-layout">
+            {/* LEFT: search/import, tabbed instead of stacked so only
+                one of the two ever takes up space at a time. */}
+            <div className="flex flex-col gap-4 pixel-page-flyin" style={{ animationDelay: "0.08s" }}>
+              <div className="pixel-tabs">
+                <button
+                  className={`pixel-tab${activeTab === "search" ? " active" : ""}`}
+                  onClick={() => setActiveTab("search")}
+                >
+                  SEARCH BEATSAVER
+                </button>
+                <button
+                  className={`pixel-tab${activeTab === "import" ? " active" : ""}`}
+                  onClick={() => setActiveTab("import")}
+                >
+                  IMPORT PLAYLIST
                 </button>
               </div>
-            )}
-            {resolvedDirectly && (
-              <p className="text-xs text-[#6a7690]">
-                Loaded {results.length} map{results.length === 1 ? "" : "s"} directly from the
-                pasted link{results.length === 1 ? "" : "s"}/ID{results.length === 1 ? "" : "s"}.
-              </p>
-            )}
-            {pastedPlaylistId && (
-              <p className="text-xs text-[#6a7690]">
-                {playlistLoading
-                  ? "Loading that playlist from BeatSaver..."
-                  : "That's a BeatSaver playlist link — loaded into IMPORT A PLAYLIST above."}
-              </p>
-            )}
 
-            {resultsLoading && results.length === 0 && !pastedPlaylistId && (
-              <p className="text-xs text-[#6a7690]">Searching BeatSaver...</p>
-            )}
-            {searchError && (
-              <p className="text-xs text-red-400">
-                Couldn't reach BeatSaver. Try again in a moment.
-              </p>
-            )}
-            {!resultsLoading && !searchError && results.length === 0 && !pastedPlaylistId && (
-              <p className="text-xs text-[#6a7690]">No maps found.</p>
-            )}
-
-            {results.length > 0 && (
-              <div className="flex flex-col gap-2">
-                {results.map((song, index) => {
-                  const hash = song.versions?.[0]?.hash?.toUpperCase();
-                  return (
-                    <MapResultRow
-                      key={song.id}
-                      index={index}
-                      song={song}
-                      added={stagedIds.has(song.id)}
-                      inPool={hash ? poolHashes.has(hash) : false}
-                      highlightWords={highlightWords}
-                      onAdd={() => addSong(song)}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            {results.length > 0 && hasMoreResults && (
-              <button
-                className="pixel-btn secondary self-center"
-                onClick={handleLoadMoreResults}
-                disabled={resultsLoading}
-              >
-                {resultsLoading ? "Loading..." : "Load More"}
-              </button>
-            )}
-          </div>
-
-          {/* Songs staged to rank — this panel only exists once there's
-              at least one queued song, so its own fly-in isn't part of
-              the page-load stagger above; it plays fresh the moment
-              the panel itself first mounts (i.e. the first song ever
-              added), which is exactly when you'd want a "there it is"
-              pop anyway. */}
-          {songs.length > 0 && (
-            <div className="pixel-rank-panel flex flex-col gap-3 pixel-page-flyin">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="pixel-section-label">QUEUED TO RANK ({songs.length})</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-[#6a7690]">
-                    {totalSelected} difficult{totalSelected === 1 ? "y" : "ies"} selected
-                  </span>
-                  <button className="pixel-toggle-link" onClick={handleClearQueue}>
-                    clear all
-                  </button>
-                </div>
-              </div>
-              {songs.map((song, index) => (
-                <StagedSongCard
-                  key={song.id}
-                  index={index}
-                  song={song}
-                  selectedDiffs={selected[song.id] || []}
-                  diffOptions={diffOptions[song.id] || {}}
-                  onToggleDiff={(diffKey) => {
-                    setSelected((old) => {
-                      const prev = old[song.id] || [];
-                      const checked = prev.includes(diffKey);
-                      return {
-                        ...old,
-                        [song.id]: checked ? prev.filter((d) => d !== diffKey) : [...prev, diffKey],
-                      };
-                    });
-                    setDiffOptions((old) => ({
-                      ...old,
-                      [song.id]: {
-                        ...old[song.id],
-                        [diffKey]: old[song.id]?.[diffKey] || DEFAULT_DIFF_OPTIONS,
-                      },
-                    }));
-                  }}
-                  onOptionsChange={(diffKey, options) =>
-                    setDiffOptions((old) => ({
-                      ...old,
-                      [song.id]: { ...old[song.id], [diffKey]: options },
-                    }))
-                  }
-                  onRemove={() => removeSong(song.id)}
-                />
-              ))}
-              <button
-                className="pixel-btn self-start"
-                onClick={handleBatchRank}
-                disabled={ranking || totalSelected === 0}
-              >
-                {ranking
-                  ? "Ranking..."
-                  : `Rank ${totalSelected} Selected Difficult${totalSelected === 1 ? "y" : "ies"} & Recalculate CR`}
-              </button>
-              {ranking && (
-                <div className="pixel-loading">
-                  <span className="pixel-font text-[10px] text-cyan-300">
-                    {rankStage || "Ranking..."}
-                  </span>
-                  <div className={`pixel-progress${rankProgress ? "" : " indeterminate"}`}>
-                    <div
-                      className="pixel-progress-fill"
-                      style={
-                        rankProgress
-                          ? {
-                              width: `${Math.min(
-                                100,
-                                Math.round(
-                                  (rankProgress.current / Math.max(rankProgress.total, 1)) * 100,
-                                ),
-                              )}%`,
-                            }
-                          : undefined
-                      }
+              {activeTab === "import" && (
+                <div className="pixel-rank-panel flex flex-col gap-4">
+                  <div
+                    className={`pixel-dropzone${isDraggingPlaylist ? " dragging" : ""}`}
+                    onClick={() => playlistFileInputRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingPlaylist(true);
+                    }}
+                    onDragLeave={() => setIsDraggingPlaylist(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingPlaylist(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handlePlaylistFile(file);
+                    }}
+                  >
+                    <span>
+                      {playlistLoading
+                        ? "Reading playlist..."
+                        : "Drop a .bplist/.json playlist file here, or click to browse"}
+                    </span>
+                    <input
+                      ref={playlistFileInputRef}
+                      type="file"
+                      accept=".bplist,.json,application/json"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePlaylistFile(file);
+                        e.target.value = "";
+                      }}
                     />
                   </div>
-                  {rankProgress && (
-                    <span className="text-[11px] text-neutral-500">
-                      {rankProgress.current} / {rankProgress.total}
-                    </span>
+
+                  {playlistError && <p className="text-xs text-red-400">{playlistError}</p>}
+
+                  {playlist && (
+                    <>
+                      <div className="flex items-center gap-3">
+                        {playlist.image && (
+                          <img
+                            src={playlist.image}
+                            alt={playlist.title}
+                            className="pixel-cover w-12 h-12 object-cover shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-cyan-200 truncate">{playlist.title}</div>
+                          {playlist.author && (
+                            <div className="text-xs text-[#b7c0d6] truncate">
+                              by {playlist.author}
+                            </div>
+                          )}
+                        </div>
+                        <button className="pixel-toggle-link" onClick={() => setPlaylist(null)}>
+                          ✕ clear
+                        </button>
+                      </div>
+
+                      {playlist.unresolvedCount > 0 && (
+                        <p className="text-xs text-[#6a7690]">
+                          {playlist.unresolvedCount} song{playlist.unresolvedCount === 1 ? "" : "s"}{" "}
+                          from this playlist couldn't be found on BeatSaver (deleted, or a hash
+                          mismatch).
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <button
+                          className={`pixel-toggle-chip${showOnlyNewFromPlaylist ? " on" : ""}`}
+                          onClick={() => setShowOnlyNewFromPlaylist((v) => !v)}
+                        >
+                          HIDE IN POOL
+                        </button>
+                        {newFromPlaylist.length > 0 && (
+                          <button
+                            className="pixel-btn secondary"
+                            onClick={() => newFromPlaylist.forEach(addSongFromPlaylist)}
+                          >
+                            Add All New ({newFromPlaylist.length})
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#6a7690]">
+                        Difficulties highlighted in the playlist are auto-selected when a song's
+                        added.
+                      </p>
+
+                      <div className="pixel-search-grid">
+                        {visiblePlaylistSongs.length === 0 && (
+                          <p className="text-xs text-[#6a7690]">
+                            {showOnlyNewFromPlaylist
+                              ? "Every map in this playlist is already in the pool."
+                              : "No maps resolved from this playlist."}
+                          </p>
+                        )}
+                        {visiblePlaylistSongs.map((song, index) => {
+                          const hash = song.versions?.[0]?.hash?.toUpperCase();
+                          return (
+                            <MapResultRow
+                              key={song.id}
+                              index={index}
+                              song={song}
+                              added={stagedIds.has(song.id)}
+                              inPool={hash ? poolHashes.has(hash) : false}
+                              highlightWords={[]}
+                              onAdd={() => addSongFromPlaylist(song)}
+                            />
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "search" && (
+                <div className="pixel-rank-panel flex flex-col gap-4">
+                  <div className="pixel-searchbox">
+                    <span className="prompt">&gt;</span>
+                    <input
+                      type="text"
+                      placeholder="song, mapper, link/ID or playlist link"
+                      value={query}
+                      onChange={(e) => {
+                        setQuery(e.target.value);
+                        setForceTextSearch(false);
+                      }}
+                      onPaste={(e) => {
+                        // A plain single-line <input> silently mangles a
+                        // multi-line paste (several links/IDs, one per
+                        // line — the old paste-a-list textarea's use
+                        // case) — browsers strip/collapse newlines
+                        // inconsistently. Read the clipboard ourselves
+                        // and join lines with spaces so
+                        // looksLikeIdOrLink's tokenizing sees every line
+                        // intact, regardless of the browser's own
+                        // behavior.
+                        const text = e.clipboardData.getData("text");
+                        if (/[\r\n]/.test(text)) {
+                          e.preventDefault();
+                          const joined = text
+                            .split(/\r?\n/)
+                            .map((line) => line.trim())
+                            .filter(Boolean)
+                            .join(" ");
+                          setQuery(joined);
+                          setForceTextSearch(false);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {mapper && (
+                    <div className="pixel-mapper-banner">
+                      <span className="pixel-font text-[8px] text-cyan-300">MAPPER</span>
+                      <img
+                        src={mapper.avatar}
+                        alt={mapper.name}
+                        className="pixel-cover w-8 h-8 object-cover shrink-0"
+                      />
+                      <span className="text-xs text-cyan-200 font-semibold flex-1">
+                        {mapper.name}
+                      </span>
+                      <button className="pixel-toggle-link" onClick={() => setForceTextSearch(true)}>
+                        search maps instead
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      className={`pixel-toggle-chip${hideInPool ? " on" : ""}`}
+                      onClick={() => setHideInPool((v) => !v)}
+                    >
+                      HIDE IN POOL
+                    </button>
+                    <button
+                      className={`pixel-toggle-chip${includeAI ? " on" : ""}`}
+                      onClick={() => setIncludeAI((v) => !v)}
+                    >
+                      AI MAPS: {includeAI ? "ON" : "OFF"}
+                    </button>
+                  </div>
+
+                  {resolvedDirectly && (
+                    <p className="text-xs text-[#6a7690]">
+                      Loaded {results.length} map{results.length === 1 ? "" : "s"} directly from the
+                      pasted link{results.length === 1 ? "" : "s"}/ID{results.length === 1 ? "" : "s"}.
+                    </p>
+                  )}
+                  {pastedPlaylistId && (
+                    <p className="text-xs text-[#6a7690]">
+                      {playlistLoading
+                        ? "Loading that playlist from BeatSaver..."
+                        : "That's a BeatSaver playlist link — switch to IMPORT PLAYLIST above."}
+                    </p>
+                  )}
+
+                  {resultsLoading && results.length === 0 && !pastedPlaylistId && (
+                    <p className="text-xs text-[#6a7690]">Searching BeatSaver...</p>
+                  )}
+                  {searchError && (
+                    <p className="text-xs text-red-400">
+                      Couldn't reach BeatSaver. Try again in a moment.
+                    </p>
+                  )}
+                  {!resultsLoading && !searchError && visibleResults.length === 0 && !pastedPlaylistId && (
+                    <p className="text-xs text-[#6a7690]">
+                      {results.length > 0 ? "Every result is already in this pool." : "No maps found."}
+                    </p>
+                  )}
+
+                  {visibleResults.length > 0 && (
+                    <div className="pixel-search-grid">
+                      {visibleResults.map((song, index) => {
+                        const hash = song.versions?.[0]?.hash?.toUpperCase();
+                        return (
+                          <MapResultRow
+                            key={song.id}
+                            index={index}
+                            song={song}
+                            added={stagedIds.has(song.id)}
+                            inPool={hash ? poolHashes.has(hash) : false}
+                            highlightWords={highlightWords}
+                            onAdd={() => addSong(song)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {results.length > 0 && hasMoreResults && (
+                    <button
+                      className="pixel-btn secondary self-center"
+                      onClick={handleLoadMoreResults}
+                      disabled={resultsLoading}
+                    >
+                      {resultsLoading ? "Loading..." : "Load More"}
+                    </button>
                   )}
                 </div>
               )}
             </div>
-          )}
+
+            {/* RIGHT: sticky rank queue — stays in view while scrolling
+                through search results on the left. */}
+            <div className="pixel-ranknew-queue-col pixel-page-flyin" style={{ animationDelay: "0.16s" }}>
+              <div className="pixel-rank-panel flex flex-col gap-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="pixel-section-label">RANK QUEUE</span>
+                  {songs.length > 0 && (
+                    <button className="pixel-toggle-link" onClick={handleClearQueue}>
+                      clear all
+                    </button>
+                  )}
+                </div>
+
+                {songs.length === 0 ? (
+                  <p className="text-xs text-[#6a7690]">
+                    Nothing queued yet — add maps from the left.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-[11px] text-[#6a7690]">
+                      {songs.length} song{songs.length === 1 ? "" : "s"} · {totalSelected} diff
+                      {totalSelected === 1 ? "" : "s"} selected
+                    </p>
+
+                    <div className="flex flex-col gap-2">
+                      {songs.map((song, index) => (
+                        <StagedSongCard
+                          key={song.id}
+                          index={index}
+                          song={song}
+                          selectedDiffs={selected[song.id] || []}
+                          diffOptions={diffOptions[song.id] || {}}
+                          onToggleDiff={(diffKey) => {
+                            setSelected((old) => {
+                              const prev = old[song.id] || [];
+                              const checked = prev.includes(diffKey);
+                              return {
+                                ...old,
+                                [song.id]: checked
+                                  ? prev.filter((d) => d !== diffKey)
+                                  : [...prev, diffKey],
+                              };
+                            });
+                            setDiffOptions((old) => ({
+                              ...old,
+                              [song.id]: {
+                                ...old[song.id],
+                                [diffKey]: old[song.id]?.[diffKey] ?? "",
+                              },
+                            }));
+                          }}
+                          onOptionsChange={(diffKey, rating) =>
+                            setDiffOptions((old) => ({
+                              ...old,
+                              [song.id]: { ...old[song.id], [diffKey]: rating },
+                            }))
+                          }
+                          onRemove={() => removeSong(song.id)}
+                        />
+                      ))}
+                    </div>
+
+                    <button
+                      className="pixel-btn secondary"
+                      onClick={handleSetRatingForAll}
+                      disabled={totalSelected === 0}
+                    >
+                      Set Star Rating For All
+                    </button>
+
+                    <button
+                      className="pixel-btn"
+                      onClick={handleBatchRank}
+                      disabled={ranking || totalSelected === 0}
+                    >
+                      {ranking
+                        ? "Ranking..."
+                        : `Rank ${totalSelected} Difficult${totalSelected === 1 ? "y" : "ies"}`}
+                    </button>
+                    {ranking && (
+                      <div className="pixel-loading">
+                        <span className="pixel-font text-[10px] text-cyan-300">
+                          {rankStage || "Ranking..."}
+                        </span>
+                        <div className={`pixel-progress${rankProgress ? "" : " indeterminate"}`}>
+                          <div
+                            className="pixel-progress-fill"
+                            style={
+                              rankProgress
+                                ? {
+                                    width: `${Math.min(
+                                      100,
+                                      Math.round(
+                                        (rankProgress.current / Math.max(rankProgress.total, 1)) *
+                                          100,
+                                      ),
+                                    )}%`,
+                                  }
+                                : undefined
+                            }
+                          />
+                        </div>
+                        {rankProgress && (
+                          <span className="text-[11px] text-neutral-500">
+                            {rankProgress.current} / {rankProgress.total}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </>
