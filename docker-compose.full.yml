@@ -1,0 +1,43 @@
+services:
+    postgres:
+        image: postgres:16
+        container_name: simple-postgres
+        restart: unless-stopped
+
+        environment:
+            POSTGRES_DB: appdb
+            POSTGRES_USER: appuser
+            POSTGRES_PASSWORD: apppassword
+
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U appuser -d appdb"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    backend:
+        build:
+            context: .
+            dockerfile: backend/Dockerfile
+
+        container_name: hitbloq-backend
+        restart: unless-stopped
+
+        ports:
+            - "3001:3001"
+
+        environment:
+            SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
+            SPRING_DATASOURCE_USERNAME: appuser
+            SPRING_DATASOURCE_PASSWORD: apppassword
+            API_KEY_ENCRYPTION_KEY_BASE64: "hHvWqlA4lH9jF3a8Fn3M5hNdb6i4Brclb7nDfLe4S8Y="
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+volumes:
+    postgres_data:
