@@ -15,7 +15,7 @@ public class RegistrationService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public void register(String username, String email, String password) {
+    public UserAccount register(String username, String email, String password) {
         if (users.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, email).isPresent()) {
             throw new IllegalArgumentException("Username or email already registered");
         }
@@ -29,7 +29,7 @@ public class RegistrationService {
             user.setEmail(email.trim().toLowerCase());
         }
 
-        users.save(user);
+        return users.save(user);
     }
 
     public void registerOnlyEmail(String email, String password) {

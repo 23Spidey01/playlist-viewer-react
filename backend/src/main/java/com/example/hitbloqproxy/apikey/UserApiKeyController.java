@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.hitbloqproxy.security.AccountPrincipal;
 
 @RestController
 @RequestMapping("/api/api-keys")
@@ -20,7 +20,7 @@ public class UserApiKeyController {
 
     @GetMapping
     public List<UserApiKeySummary> getAll(Authentication authentication) {
-        return apiKeyService.findAll(requireAuthenticatedLogin(authentication));
+        return apiKeyService.findAll(AccountPrincipal.requireUserId(authentication));
     }
 
     @GetMapping(params = "pool")
@@ -29,7 +29,7 @@ public class UserApiKeyController {
             Authentication authentication
     ) {
         List<DecryptedApiKeyResponse> result =
-                apiKeyService.findDecryptedByPool(requireAuthenticatedLogin(authentication), pool);
+                apiKeyService.findDecryptedByPool(AccountPrincipal.requireUserId(authentication), pool);
 
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Pragma", "no-cache").body(result);
     }
@@ -37,7 +37,7 @@ public class UserApiKeyController {
     @PostMapping
     public ResponseEntity<UserApiKeySummary> create(@RequestBody ApiKeyRequest request, Authentication authentication) {
         UserApiKeySummary created =
-                apiKeyService.create(requireAuthenticatedLogin(authentication), request.pool(), request.apiKey());
+                apiKeyService.create(AccountPrincipal.requireUserId(authentication), request.pool(), request.apiKey());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -48,23 +48,16 @@ public class UserApiKeyController {
             @RequestBody ApiKeyRequest request,
             Authentication authentication
     ) {
-        return apiKeyService.update(requireAuthenticatedLogin(authentication), id, request.pool(), request.apiKey());
+        return apiKeyService.update(AccountPrincipal.requireUserId(authentication), id, request.pool(), request.apiKey());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id, Authentication authentication) {
-        apiKeyService.delete(requireAuthenticatedLogin(authentication), id);
+        apiKeyService.delete(AccountPrincipal.requireUserId(authentication), id);
 
         return ResponseEntity.noContent().build();
     }
 
-    private String requireAuthenticatedLogin(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-        }
-
-        return authentication.getName();
-    }
 
     public record ApiKeyRequest(String pool, String apiKey) {}
 }

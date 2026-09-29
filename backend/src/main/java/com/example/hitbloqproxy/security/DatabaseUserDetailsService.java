@@ -2,7 +2,6 @@ package com.example.hitbloqproxy.security;
 
 import com.example.hitbloqproxy.user.UserAccount;
 import com.example.hitbloqproxy.user.UserAccountRepository;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -22,12 +21,6 @@ public class DatabaseUserDetailsService implements UserDetailsService {
             .findByUsernameIgnoreCaseOrEmailIgnoreCase(login, login)
             .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        return User
-            .builder()
-            .username(user.getUsername())
-            .password(user.getPasswordHash())
-            .disabled(!user.isEnabled())
-            .roles("USER")
-            .build();
+        return new AccountPrincipal(user);
     }
 }

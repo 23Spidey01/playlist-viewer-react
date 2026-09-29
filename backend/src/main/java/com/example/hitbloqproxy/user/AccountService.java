@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class AccountService {
@@ -20,8 +21,8 @@ public class AccountService {
     }
 
     @Transactional
-    public void changeEmail(String currentLoginIdentifier, String currentPassword, String newEmail) {
-        UserAccount user = requireUser(currentLoginIdentifier);
+    public void changeEmail(UUID userId, String currentPassword, String newEmail) {
+        UserAccount user = requireUser(userId);
 
         verifyCurrentPassword(user, currentPassword);
 
@@ -39,8 +40,8 @@ public class AccountService {
     }
 
     @Transactional
-    public void changeUsername(String currentLoginIdentifier, String currentPassword, String newUsername) {
-        UserAccount user = requireUser(currentLoginIdentifier);
+    public void changeUsername(UUID userId, String currentPassword, String newUsername) {
+        UserAccount user = requireUser(userId);
 
         verifyCurrentPassword(user, currentPassword);
 
@@ -58,8 +59,8 @@ public class AccountService {
     }
 
     @Transactional
-    public void changePassword(String currentLoginIdentifier, String currentPassword, String newPassword) {
-        UserAccount user = requireUser(currentLoginIdentifier);
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        UserAccount user = requireUser(userId);
 
         verifyCurrentPassword(user, currentPassword);
 
@@ -70,9 +71,9 @@ public class AccountService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
     }
 
-    private UserAccount requireUser(String loginIdentifier) {
+    private UserAccount requireUser(UUID userId) {
         return userRepository
-            .findByUsernameIgnoreCaseOrEmailIgnoreCase(loginIdentifier, loginIdentifier)
+            .findById(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 

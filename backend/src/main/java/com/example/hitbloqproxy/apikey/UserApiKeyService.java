@@ -31,8 +31,8 @@ public class UserApiKeyService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserApiKeySummary> findAll(String login) {
-        UserAccount user = requireUser(login);
+    public List<UserApiKeySummary> findAll(UUID userId) {
+        UserAccount user = requireUser(userId);
 
         return apiKeyRepository
             .findAllByUser_IdOrderByCreatedAtDesc(user.getId())
@@ -42,8 +42,8 @@ public class UserApiKeyService {
     }
 
     @Transactional
-    public UserApiKeySummary create(String login, String pool, String plainApiKey) {
-        UserAccount user = requireUser(login);
+    public UserApiKeySummary create(UUID userId, String pool, String plainApiKey) {
+        UserAccount user = requireUser(userId);
 
         String normalizedPool = normalizePool(pool);
 
@@ -75,8 +75,8 @@ public class UserApiKeyService {
     }
 
     @Transactional
-    public UserApiKeySummary update(String login, UUID apiKeyId, String pool, String plainApiKey) {
-        UserAccount user = requireUser(login);
+    public UserApiKeySummary update(UUID userId, UUID apiKeyId, String pool, String plainApiKey) {
+        UserAccount user = requireUser(userId);
 
         UserApiKey entity = requireApiKey(user.getId(), apiKeyId);
 
@@ -104,8 +104,8 @@ public class UserApiKeyService {
     }
 
     @Transactional
-    public void delete(String login, UUID apiKeyId) {
-        UserAccount user = requireUser(login);
+    public void delete(UUID userId, UUID apiKeyId) {
+        UserAccount user = requireUser(userId);
 
         UserApiKey entity = requireApiKey(user.getId(), apiKeyId);
 
@@ -121,8 +121,8 @@ public class UserApiKeyService {
    * to contact the external service.
    */
     @Transactional(readOnly = true)
-    public String getDecryptedApiKeyForUse(String login, UUID apiKeyId) {
-        UserAccount user = requireUser(login);
+    public String getDecryptedApiKeyForUse(UUID userId, UUID apiKeyId) {
+        UserAccount user = requireUser(userId);
 
         UserApiKey entity = requireApiKey(user.getId(), apiKeyId);
 
@@ -130,8 +130,8 @@ public class UserApiKeyService {
     }
 
     @Transactional(readOnly = true)
-    public List<DecryptedApiKeyResponse> findDecryptedByPool(String login, String pool) {
-        UserAccount user = requireUser(login);
+    public List<DecryptedApiKeyResponse> findDecryptedByPool(UUID userId, String pool) {
+        UserAccount user = requireUser(userId);
 
         String normalizedPool = normalizePool(pool);
 
@@ -144,9 +144,9 @@ public class UserApiKeyService {
             .toList();
     }
 
-    private UserAccount requireUser(String login) {
+    private UserAccount requireUser(UUID userId) {
         return userRepository
-            .findByUsernameIgnoreCaseOrEmailIgnoreCase(login, login)
+            .findById(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user does not exist"));
     }
 
