@@ -22,6 +22,8 @@ public class UserAccount {
     private String passwordHash;
     @Column(nullable = false)
     private boolean enabled = true;
+    @Column(name = "session_version", nullable = false, columnDefinition = "bigint default 0")
+    private long sessionVersion = 0;
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
     @Column(name = "created_at", nullable = false)

@@ -181,9 +181,16 @@ export async function changePassword(
 }
 
 export async function listApiKeys(): Promise<ApiKeySummary[]> {
-  const res = await authFetch("/api/api-keys");
-  if (!res.ok || isAuthRedirect(res)) return [];
-  return res.json();
+  const keys: ApiKeySummary[] = [];
+  const size = 100;
+  for (let page = 0; page <= 10000; page++) {
+    const res = await authFetch(`/api/api-keys?page=${page}&size=${size}`);
+    if (!res.ok || isAuthRedirect(res)) return [];
+    const batch: ApiKeySummary[] = await res.json();
+    keys.push(...batch);
+    if (batch.length < size) return keys;
+  }
+  return keys;
 }
 
 // Used by askApiKey() to silently look up a saved key before falling
@@ -191,7 +198,7 @@ export async function listApiKeys(): Promise<ApiKeySummary[]> {
 // for "not logged in" — callers don't need to tell those apart.
 export async function getApiKeyForPool(pool: string): Promise<string | null> {
   try {
-    const res = await authFetch(`/api/api-keys?pool=${encodeURIComponent(pool)}`);
+    const res = await authFetch(`/api/api-keys?pool=${encodeURIComponent(pool)}&size=1`);
     if (!res.ok || isAuthRedirect(res)) return null;
     const data: { id: string; apiKey: string }[] = await res.json();
     return data.length > 0 ? data[0].apiKey : null;

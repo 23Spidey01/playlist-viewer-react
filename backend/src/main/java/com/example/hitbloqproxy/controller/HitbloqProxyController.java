@@ -1,8 +1,8 @@
 package com.example.hitbloqproxy.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
@@ -122,7 +122,7 @@ public class HitbloqProxyController {
         try {
             JsonNode json = objectMapper.readTree(text);
             return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(json);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .contentType(MediaType.TEXT_PLAIN)

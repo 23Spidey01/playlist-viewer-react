@@ -40,7 +40,7 @@ public class DataSeeder implements CommandLineRunner {
         if (enabled) {
             BeatMap beatMap1 = new BeatMap();
             String pool1name = "Example Pool";
-            String username1 = "a";
+            String username1 = "devuser";
             String email1 = "a@a.com";
 
             beatMap1.setHitbloqId("example-hitbloq-id");
@@ -53,8 +53,8 @@ public class DataSeeder implements CommandLineRunner {
 
             poolBeatMapEntryService.addBeatMapToPool(beatMap1.getId(), pool1.getId());
 
-            registrationService.register(username1, email1, "admin");
-            userApiKeyService.create(username1, pool1name, "TEST-API-KEY-TEST");
+            var account = registrationService.register(username1, email1, "development-password");
+            userApiKeyService.create(account.getId(), pool1name, "TEST-API-KEY-TEST");
         }
     }
 }

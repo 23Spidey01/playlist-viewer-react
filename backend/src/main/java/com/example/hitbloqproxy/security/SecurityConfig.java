@@ -1,19 +1,30 @@
 package com.example.hitbloqproxy.security;
 
+import com.example.hitbloqproxy.user.UserAccountRepository;
+import com.example.hitbloqproxy.apikey.ApiKeyLimits;
+import com.example.hitbloqproxy.apikey.ApiKeyRequestSizeFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CsrfFilter;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, UserAccountRepository users,
+            AuthRateLimitProperties rateLimits, ApiKeyLimits keyLimits) throws Exception {
         http
+            .cors(Customizer.withDefaults())
+            .addFilterBefore(new ApiKeyRequestSizeFilter(keyLimits), CsrfFilter.class)
+            .addFilterAfter(new AccountSessionFilter(users), SecurityContextHolderFilter.class)
+            .addFilterBefore(new AuthRateLimitFilter(rateLimits, users), UsernamePasswordAuthenticationFilter.class)
             // Hitbloq, regardless of whether the API key is valid.
             .csrf(csrf -> csrf.ignoringRequestMatchers("/proxy/**"))
             .authorizeHttpRequests(auth -> auth
@@ -51,6 +62,6 @@ public class SecurityConfig {
 
     @Bean
     PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        return new StrictPasswordEncoder();
     }
 }
