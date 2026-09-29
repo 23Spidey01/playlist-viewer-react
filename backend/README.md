@@ -7,6 +7,9 @@ Spring Boot equivalent of the provided Node/Express `proxy.cjs`.
 - Java 17+
 - Maven 3.9+
 
+The backend uses Spring Boot 4.0.8 (Spring Security 7.0.7). The configured password encoder
+explicitly rejects input longer than 72 UTF-8 bytes for both hashing and verification.
+
 ## Run
 
 ```bash
@@ -20,7 +23,9 @@ set `APP_CORS_ALLOWED_ORIGINS` to its exact origin (or a comma-separated list), 
 slashes or wildcards. Same-origin deployments need no setting. The `dev` profile allows
 `http://localhost:5173` and `http://127.0.0.1:5173` unless overridden.
 
-Registration and password changes require 12–128 characters. Authentication endpoints return
+Registration and password changes require at least 12 characters and at most 72 UTF-8 bytes,
+matching BCrypt's input limit. Oversized login and current-password inputs are rejected rather
+than truncated. Existing `{bcrypt}` password hashes remain compatible. Authentication endpoints return
 HTTP 429 with `Retry-After` when their attempt budget is exhausted. Defaults per 15-minute window:
 50 logins/IP, 10 logins/account (shared between username and email), 5 registrations/IP,
 30 account changes/IP, and 10 account changes/account. Configure these with

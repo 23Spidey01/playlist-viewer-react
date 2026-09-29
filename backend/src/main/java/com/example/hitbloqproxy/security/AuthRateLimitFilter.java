@@ -34,7 +34,7 @@ public final class AuthRateLimitFilter extends OncePerRequestFilter {
             String login = request.getParameter("username");
             login = login == null ? "" : login.trim().toLowerCase(Locale.ROOT);
             String password = request.getParameter("password");
-            if (login.length() > 320 || (password != null && password.length() > 128)) {
+            if (login.length() > 320 || PasswordPolicy.exceedsBcryptLimit(password)) {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST);
                 return;
             }

@@ -83,7 +83,8 @@ public class AccountService {
     }
 
     private void verifyCurrentPassword(UserAccount user, String password) {
-        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+        if (password == null || PasswordPolicy.exceedsBcryptLimit(password)
+                || !passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
         }
     }
