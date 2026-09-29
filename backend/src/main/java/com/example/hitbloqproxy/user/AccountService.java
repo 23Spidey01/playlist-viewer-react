@@ -1,5 +1,6 @@
 package com.example.hitbloqproxy.user;
 
+import com.example.hitbloqproxy.security.PasswordPolicy;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,7 @@ public class AccountService {
 
     @Transactional
     public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        PasswordPolicy.validate(newPassword);
         UserAccount user = requireUser(userId);
 
         verifyCurrentPassword(user, currentPassword);

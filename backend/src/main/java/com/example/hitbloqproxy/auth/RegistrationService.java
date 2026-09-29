@@ -2,6 +2,7 @@ package com.example.hitbloqproxy.auth;
 
 import com.example.hitbloqproxy.user.UserAccount;
 import com.example.hitbloqproxy.user.UserAccountRepository;
+import com.example.hitbloqproxy.security.PasswordPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ public class RegistrationService {
     }
 
     public UserAccount register(String username, String email, String password) {
+        PasswordPolicy.validate(password);
         if (users.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, email).isPresent()) {
             throw new IllegalArgumentException("Username or email already registered");
         }

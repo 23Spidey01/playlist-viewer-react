@@ -53,7 +53,7 @@ public class DataSeeder implements CommandLineRunner {
 
             poolBeatMapEntryService.addBeatMapToPool(beatMap1.getId(), pool1.getId());
 
-            var account = registrationService.register(username1, email1, "admin");
+            var account = registrationService.register(username1, email1, "development-password");
             userApiKeyService.create(account.getId(), pool1name, "TEST-API-KEY-TEST");
         }
     }

@@ -10,15 +10,18 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, UserAccountRepository users) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, UserAccountRepository users,
+            AuthRateLimitProperties rateLimits) throws Exception {
         http
             .cors(Customizer.withDefaults())
             .addFilterAfter(new AccountSessionFilter(users), SecurityContextHolderFilter.class)
+            .addFilterBefore(new AuthRateLimitFilter(rateLimits, users), UsernamePasswordAuthenticationFilter.class)
             // Hitbloq, regardless of whether the API key is valid.
             .csrf(csrf -> csrf.ignoringRequestMatchers("/proxy/**"))
             .authorizeHttpRequests(auth -> auth

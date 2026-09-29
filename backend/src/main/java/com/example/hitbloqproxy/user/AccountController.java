@@ -74,15 +74,15 @@ public class AccountController {
         logoutHandler.logout(request, response, authentication);
     }
 
-    public record ChangeEmailRequest(@NotBlank @Email String newEmail, @NotBlank String currentPassword) {}
+    public record ChangeEmailRequest(@NotBlank @Email String newEmail, @NotBlank @Size(max = 128) String currentPassword) {}
 
     public record ChangeUsernameRequest(
             @NotBlank @Size(min = 3, max = 50) String newUsername,
-            @NotBlank String currentPassword
+            @NotBlank @Size(max = 128) String currentPassword
     ) {}
 
     public record ChangePasswordRequest(
-            @NotBlank String currentPassword,
+            @NotBlank @Size(max = 128) String currentPassword,
             @NotBlank @Size(min = 12, max = 128) String newPassword
     ) {}
 }

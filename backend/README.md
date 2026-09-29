@@ -20,6 +20,16 @@ set `APP_CORS_ALLOWED_ORIGINS` to its exact origin (or a comma-separated list), 
 slashes or wildcards. Same-origin deployments need no setting. The `dev` profile allows
 `http://localhost:5173` and `http://127.0.0.1:5173` unless overridden.
 
+Registration and password changes require 12–128 characters. Authentication endpoints return
+HTTP 429 with `Retry-After` when their attempt budget is exhausted. Defaults per 15-minute window:
+50 logins/IP, 10 logins/account (shared between username and email), 5 registrations/IP,
+30 account changes/IP, and 10 account changes/account. Configure these with
+`app.auth-rate-limit.*` (`login-per-ip`, `login-per-account`, `registration-per-ip`,
+`changes-per-ip`, `changes-per-account`, `window-seconds`, `max-buckets`).
+Counters are bounded to 10,000 entries and kept per application process; multiple replicas
+need a shared gateway/limiter for a deployment-wide budget. The limiter uses the direct peer IP;
+do not enable forwarded-header trust without a proxy that strips untrusted forwarding headers.
+
 ## Endpoints
 
 ```text
