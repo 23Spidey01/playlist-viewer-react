@@ -37,6 +37,7 @@ public class AccountService {
         }
 
         user.setEmail(normalizedEmail);
+        user.setSessionVersion(user.getSessionVersion() + 1);
     }
 
     @Transactional
@@ -56,6 +57,7 @@ public class AccountService {
         }
 
         user.setUsername(normalizedUsername);
+        user.setSessionVersion(user.getSessionVersion() + 1);
     }
 
     @Transactional
@@ -69,11 +71,12 @@ public class AccountService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setSessionVersion(user.getSessionVersion() + 1);
     }
 
     private UserAccount requireUser(UUID userId) {
         return userRepository
-            .findById(userId)
+            .findLockedById(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 
