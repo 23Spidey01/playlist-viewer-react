@@ -19,17 +19,20 @@ public class UserApiKeyController {
     }
 
     @GetMapping
-    public List<UserApiKeySummary> getAll(Authentication authentication) {
-        return apiKeyService.findAll(AccountPrincipal.requireUserId(authentication));
+    public List<UserApiKeySummary> getAll(Authentication authentication,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+        return apiKeyService.findAll(AccountPrincipal.requireUserId(authentication), page, size);
     }
 
     @GetMapping(params = "pool")
     public ResponseEntity<List<DecryptedApiKeyResponse>> getByPool(
             @RequestParam String pool,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
             Authentication authentication
     ) {
         List<DecryptedApiKeyResponse> result =
-                apiKeyService.findDecryptedByPool(AccountPrincipal.requireUserId(authentication), pool);
+                apiKeyService.findDecryptedByPool(AccountPrincipal.requireUserId(authentication), pool, page, size);
 
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Pragma", "no-cache").body(result);
     }

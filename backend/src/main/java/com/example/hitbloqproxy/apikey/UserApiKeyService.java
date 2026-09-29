@@ -5,6 +5,9 @@ import com.example.hitbloqproxy.user.UserAccountRepository;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,25 +20,28 @@ public class UserApiKeyService {
     private final UserAccountRepository userRepository;
     private final ApiKeyCryptoService cryptoService;
     private final EntityManager entityManager;
+    private final ApiKeyLimits limits;
 
     public UserApiKeyService(
             UserApiKeyRepository apiKeyRepository,
             UserAccountRepository userRepository,
             ApiKeyCryptoService cryptoService,
-            EntityManager entityManager
+            EntityManager entityManager,
+            ApiKeyLimits limits
     ) {
         this.apiKeyRepository = apiKeyRepository;
         this.userRepository = userRepository;
         this.cryptoService = cryptoService;
         this.entityManager = entityManager;
+        this.limits = limits;
     }
 
     @Transactional(readOnly = true)
-    public List<UserApiKeySummary> findAll(UUID userId) {
+    public List<UserApiKeySummary> findAll(UUID userId, int page, int size) {
         UserAccount user = requireUser(userId);
 
         return apiKeyRepository
-            .findAllByUser_IdOrderByCreatedAtDesc(user.getId())
+            .findAllByUser_Id(user.getId(), pageRequest(page, size))
             .stream()
             .map(this::toSummary)
             .toList();
@@ -43,11 +49,17 @@ public class UserApiKeyService {
 
     @Transactional
     public UserApiKeySummary create(UUID userId, String pool, String plainApiKey) {
-        UserAccount user = requireUser(userId);
+        // Every creation locks the same owner row, so parallel requests cannot exceed the quota.
+        UserAccount user = userRepository.findLockedById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
 
         String normalizedPool = normalizePool(pool);
 
         validateApiKey(plainApiKey);
+
+        if (apiKeyRepository.countByUser_Id(userId) >= limits.getMaxPerUser()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "API key quota reached");
+        }
 
         UUID apiKeyId = UUID.randomUUID();
 
@@ -130,13 +142,13 @@ public class UserApiKeyService {
     }
 
     @Transactional(readOnly = true)
-    public List<DecryptedApiKeyResponse> findDecryptedByPool(UUID userId, String pool) {
+    public List<DecryptedApiKeyResponse> findDecryptedByPool(UUID userId, String pool, int page, int size) {
         UserAccount user = requireUser(userId);
 
         String normalizedPool = normalizePool(pool);
 
         return apiKeyRepository
-            .findAllByUser_IdAndPoolOrderByCreatedAtDesc(user.getId(), normalizedPool)
+            .findAllByUser_IdAndPool(user.getId(), normalizedPool, pageRequest(page, size))
             .stream()
             .map(entity -> new DecryptedApiKeyResponse(entity.getId(), cryptoService
                 // entity.getPool(),
@@ -181,6 +193,18 @@ public class UserApiKeyService {
         if (apiKey == null || apiKey.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "API key must not be empty");
         }
+        if (apiKey.length() > limits.getMaxKeyBytes()
+                || apiKey.getBytes(StandardCharsets.UTF_8).length > limits.getMaxKeyBytes()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "API key must not exceed " + limits.getMaxKeyBytes() + " UTF-8 bytes");
+        }
+    }
+
+    private PageRequest pageRequest(int page, int size) {
+        if (page < 0 || page > 10000 || size < 1 || size > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page must be 0–10000 and size must be 1–100");
+        }
+        return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by("id")));
     }
 
     private UserApiKeySummary toSummary(UserApiKey entity) {

@@ -58,6 +58,17 @@ GROUP BY identifier HAVING count(DISTINCT id) > 1;
 
 ## Endpoints
 
+API-key storage defaults to 100 keys per account, 4,096 UTF-8 bytes per key, and 65,536 bytes per
+write request. Configure `app.api-keys.max-per-user`, `max-key-bytes`, and `max-request-bytes`
+to adjust these bounds. Oversized requests return 413, oversized keys return 400, and exhausted
+quotas return 409. Quota checks lock the owner row in the database, including across replicas.
+Updates and deletions remain available when the account has reached its quota.
+
+Both `GET /api/api-keys` and `GET /api/api-keys?pool=...` accept zero-based `page` (default 0,
+maximum 10,000) and `size` (default 50, maximum 100). Their response remains a JSON array;
+a short/empty page marks the end. Pool results still contain the intended plaintext keys.
+Existing records are not deleted when limits are introduced.
+
 ```text
 POST /proxy/unrank                     -> POST https://hitbloq.com/api/pools/unrank
 POST /proxy/rank                       -> POST https://hitbloq.com/api/pools/rank
