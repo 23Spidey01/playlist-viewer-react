@@ -522,6 +522,14 @@ const SongList: React.FC<SongListProps> = ({
   const hitbloqHashes = songs.map((song) =>
     song.song_id.split("_")[0].toUpperCase(),
   );
+
+  // Hardest ranked difficulty in the pool — used to turn the pool's raw
+  // cr_curve (an accuracy -> multiplier curve) into real CR numbers for
+  // the header chart. See CrCurveChart.tsx.
+  const poolStars = songs
+    .map((song) => song.song_stars)
+    .filter((stars): stars is number => typeof stars === "number");
+  const maxStars = poolStars.length > 0 ? Math.max(...poolStars) : undefined;
   // Hashes from BeatSaver songs (uppercase)
   const beatsaverHashes = bsSongs
     .map((song) => song.versions?.[0]?.hash?.toUpperCase())
@@ -1031,6 +1039,8 @@ const SongList: React.FC<SongListProps> = ({
           editMode={editMode}
           onToggleEditMode={onToggleEditMode}
           leaders={leaders}
+          poolId={poolId}
+          maxStars={maxStars}
         />
       )}
       {/* Actions for the current difficulty selection (edit mode).

@@ -1,4 +1,5 @@
 import React from "react";
+import CrCurveChart from "./CrCurveChart";
 
 export interface PoolDetailed {
   id: string;
@@ -36,6 +37,8 @@ interface PoolHeaderProps {
   editMode: boolean;
   onToggleEditMode: () => void;
   leaders?: LeaderEntry[];
+  poolId: string;
+  maxStars?: number;
 }
 
 const RANK_COLOR = ["#f3c542", "#c0c8dc", "#c07a3a"];
@@ -77,6 +80,8 @@ const PoolHeader: React.FC<PoolHeaderProps> = ({
   editMode,
   onToggleEditMode,
   leaders = [],
+  poolId,
+  maxStars,
 }) => (
   <div
     className={`pixel-pool-header pixel-page-flyin${
@@ -198,6 +203,8 @@ const PoolHeader: React.FC<PoolHeaderProps> = ({
         </a>
       </div>
     </div>
+
+    <CrCurveChart poolId={poolId} maxStars={maxStars} />
 
     {/* Barrier tape wrapped across the header — the least subtle
         possible "this is edit mode" cue. Purely decorative overlay:

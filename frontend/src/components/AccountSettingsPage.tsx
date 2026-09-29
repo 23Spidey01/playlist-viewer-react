@@ -83,7 +83,7 @@ const AccountSettingsPage: React.FC = () => {
 
       <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">
         {!user ? (
-          <div className="pixel-card pixel-page-flyin" style={{ padding: 24, maxWidth: 420 }}>
+          <div className="pixel-card pixel-card-static pixel-page-flyin" style={{ padding: 24, maxWidth: 420 }}>
             <div className="text-sm text-[#b7c0d6] mb-3">
               You need to be logged in to change your account settings.
             </div>

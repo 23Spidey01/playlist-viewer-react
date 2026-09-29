@@ -60,6 +60,15 @@ public class HitbloqProxyController {
         return proxyGet("ranked_list_detailed/%s/%s".formatted(poolId, page));
     }
 
+    // Pool-level metadata (not per-song) — includes cr_curve, the
+    // function Hitbloq uses to turn a map's rank position within the
+    // pool into a CR value. Used by SongList.tsx to chart it.
+    @GetMapping("/ranked_list/{pool_id}")
+    public ResponseEntity<?> rankedList(@PathVariable("pool_id") String poolId)
+            throws IOException, InterruptedException {
+        return proxyGet("ranked_list/%s".formatted(poolId));
+    }
+
     @PostMapping(value = "/recalculate_cr", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> recalculateCr(@RequestBody String requestBody) throws IOException, InterruptedException {
         return proxyPost("pools/recalculate_cr", requestBody);
