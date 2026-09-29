@@ -8,7 +8,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,8 +23,8 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email.trim() || !password) {
-      setError("Enter both an email and a password.");
+    if (!username.trim() || !password) {
+      setError("Enter both a username and a password.");
       return;
     }
 
@@ -32,7 +32,7 @@ const LoginPage: React.FC = () => {
     setError(null);
 
     if (mode === "register") {
-      const result = await register(email.trim(), password);
+      const result = await register(username.trim(), password);
       if (!result.ok) {
         setError(result.error || "Registration failed.");
         setBusy(false);
@@ -40,7 +40,7 @@ const LoginPage: React.FC = () => {
       }
     }
 
-    const result = await login(email.trim(), password);
+    const result = await login(username.trim(), password);
     setBusy(false);
 
     if (!result.ok) {
@@ -86,13 +86,13 @@ const LoginPage: React.FC = () => {
           </div>
 
           <label className="flex flex-col gap-1 text-xs text-[#b7c0d6]">
-            EMAIL
+            USERNAME
             <input
               className="pixel-input"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
             />
           </label>
 

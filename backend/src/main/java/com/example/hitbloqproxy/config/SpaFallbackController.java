@@ -12,7 +12,7 @@ public class SpaFallbackController {
      * loading the app. Mirrors the <Route> list in App.tsx — add new
      * client-side routes here too, or they'll 404 on direct load.
      */
-    @RequestMapping({"/pool/{id}", "/pool/{poolId}/rank-new", "/song/{id}", "/login", "/api-keys"})
+    @RequestMapping({"/pool/{id}", "/pool/{poolId}/rank-new", "/song/{id}", "/login", "/api-keys", "/account"})
     public String forward() {
         return "forward:/index.html";
     }

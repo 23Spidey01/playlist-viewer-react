@@ -17,6 +17,7 @@ import { AuthProvider } from "./components/AuthContext";
 import AccountMenu from "./components/AccountMenu";
 import LoginPage from "./components/LoginPage";
 import ApiKeysPage from "./components/ApiKeysPage";
+import AccountSettingsPage from "./components/AccountSettingsPage";
 import "./components/pixel-ui.css";
 
 interface PoolDetailed {
@@ -224,6 +225,7 @@ const App: React.FC = () => {
               <Route path="/pool/:poolId/rank-new" element={<RankNewMaps />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/api-keys" element={<ApiKeysPage />} />
+              <Route path="/account" element={<AccountSettingsPage />} />
             </Routes>
           </div>
         </Router>

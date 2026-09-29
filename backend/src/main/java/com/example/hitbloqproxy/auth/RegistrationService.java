@@ -16,7 +16,21 @@ public class RegistrationService {
     }
 
     public void register(String username, String email, String password) {
-        if (users.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, email).isPresent()) {
+        // findByUsernameIgnoreCaseOrEmailIgnoreCase's generated query
+        // turns a null email parameter into "email IS NULL" (Spring
+        // Data JPA's standard null-parameter handling for a derived
+        // query), not "skip this condition" — so once any user has
+        // registered without an email, every later no-email
+        // registration matches THAT row's null email and gets
+        // rejected as a duplicate, regardless of username. Only
+        // include the email side of the check when an email was
+        // actually given.
+        boolean duplicate =
+                email != null && !email.isBlank()
+                        ? users.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, email).isPresent()
+                        : users.findByUsernameIgnoreCase(username).isPresent();
+
+        if (duplicate) {
             throw new IllegalArgumentException("Username or email already registered");
         }
 

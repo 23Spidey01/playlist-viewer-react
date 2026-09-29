@@ -9,7 +9,7 @@
 const BASE = "http://localhost:3001";
 
 export interface CurrentUser {
-  email: string;
+  username: string;
 }
 
 export interface ApiKeySummary {
@@ -65,9 +65,9 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   }
 }
 
-export async function login(email: string, password: string): Promise<ApiResult> {
+export async function login(username: string, password: string): Promise<ApiResult> {
   const { headerName, token } = await getCsrf();
-  const body = new URLSearchParams({ email, password });
+  const body = new URLSearchParams({ username, password });
 
   const res = await fetch(`${BASE}/api/auth/login`, {
     method: "POST",
@@ -87,10 +87,13 @@ export async function login(email: string, password: string): Promise<ApiResult>
     csrf = null;
     return { ok: true };
   }
-  return { ok: false, error: "Invalid email or password." };
+  return { ok: false, error: "Invalid username or password." };
 }
 
-export async function register(email: string, password: string): Promise<ApiResult> {
+// No email field — registration only asks for a username, deliberately
+// not collecting an email address (the backend still supports one, but
+// nothing on this site sends it).
+export async function register(username: string, password: string): Promise<ApiResult> {
   const { headerName, token } = await getCsrf();
 
   const res = await fetch(`${BASE}/api/auth/register`, {
@@ -100,7 +103,7 @@ export async function register(email: string, password: string): Promise<ApiResu
       "Content-Type": "application/json",
       [headerName]: token,
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username, password }),
   });
 
   if (res.status === 201) return { ok: true };
@@ -111,6 +114,70 @@ export async function register(email: string, password: string): Promise<ApiResu
 export async function logout(): Promise<void> {
   await authFetch("/api/auth/logout", { method: "POST" });
   csrf = null;
+}
+
+// Spring's default error responses omit the actual reason text unless
+// the app opts in (server.error.include-message, not set here), so
+// this only shows AccountService's specific message (e.g. "Current
+// password is incorrect") if the backend happens to include one, and
+// otherwise falls back to a generic message per status code — the
+// same reasoning as postToPool's error fallback elsewhere.
+async function accountErrorMessage(res: Response, fallback: string): Promise<string> {
+  const data = await res.json().catch(() => null);
+  if (data?.message) return data.message;
+  if (res.status === 401) return "Current password is incorrect.";
+  if (res.status === 409) return "That's already taken by another account.";
+  return fallback;
+}
+
+// Each of these changes the account's own credentials, which
+// invalidates the current session server-side the moment it succeeds
+// (AccountController logs the session out on every successful call) —
+// the caller is responsible for reflecting that locally (clear the
+// cached user, redirect to /login) once `ok` comes back true.
+export async function changeUsername(
+  currentPassword: string,
+  newUsername: string,
+): Promise<ApiResult> {
+  const res = await authFetch("/api/account/username", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newUsername }),
+  });
+  if (res.ok) {
+    csrf = null;
+    return { ok: true };
+  }
+  return { ok: false, error: await accountErrorMessage(res, "Could not change your username.") };
+}
+
+export async function changeEmail(currentPassword: string, newEmail: string): Promise<ApiResult> {
+  const res = await authFetch("/api/account/email", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newEmail }),
+  });
+  if (res.ok) {
+    csrf = null;
+    return { ok: true };
+  }
+  return { ok: false, error: await accountErrorMessage(res, "Could not change your email.") };
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ApiResult> {
+  const res = await authFetch("/api/account/password", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (res.ok) {
+    csrf = null;
+    return { ok: true };
+  }
+  return { ok: false, error: await accountErrorMessage(res, "Could not change your password.") };
 }
 
 export async function listApiKeys(): Promise<ApiKeySummary[]> {

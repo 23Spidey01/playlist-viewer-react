@@ -22,7 +22,9 @@ const AccountMenu: React.FC = () => {
       <Link to="/api-keys" className="pixel-tab" style={{ color: "#b7c0d6" }}>
         API KEYS
       </Link>
-      <span className="text-xs text-[#6a7690]">{user.email}</span>
+      <Link to="/account" className="pixel-tab" style={{ color: "#b7c0d6" }}>
+        {user.username}
+      </Link>
       <button
         className="pixel-tab"
         onClick={async () => {
