@@ -18,7 +18,7 @@ public class DatabaseUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String login) {
         UserAccount user = userRepository
-            .findByUsernameIgnoreCaseOrEmailIgnoreCase(login, login)
+            .findUniqueByLogin(login)
             .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         return new AccountPrincipal(user);

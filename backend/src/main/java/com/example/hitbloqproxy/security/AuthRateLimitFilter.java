@@ -38,7 +38,7 @@ public final class AuthRateLimitFilter extends OncePerRequestFilter {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST);
                 return;
             }
-            String identity = users.findByUsernameIgnoreCaseOrEmailIgnoreCase(login, login)
+            String identity = users.findUniqueByLogin(login)
                     .map(user -> user.getId().toString())
                     .orElseGet(() -> "unknown");
             // Unknown users share a bucket; avoid unbounded attacker-controlled login strings.

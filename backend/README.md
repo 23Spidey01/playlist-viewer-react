@@ -30,6 +30,27 @@ Counters are bounded to 10,000 entries and kept per application process; multipl
 need a shared gateway/limiter for a deployment-wide budget. The limiter uses the direct peer IP;
 do not enable forwarded-header trust without a proxy that strips untrusted forwarding headers.
 
+Account usernames are normalized to lowercase and must contain 3–50 letters, digits, `.`, `_`,
+or `-`; emails are trimmed, normalized, and validated. Email-only registration gets a generated
+username and can still log in with the email. New identifiers are checked against both columns,
+including legacy email-shaped usernames. Login fails with 401 if a legacy identifier is ambiguous.
+
+Startup installs case-insensitive unique indexes on usernames and emails after Hibernate schema
+initialization. If existing accounts conflict, startup stops without renaming or merging accounts.
+Before deploying, identify conflicts with this PostgreSQL query and assign distinct identifiers
+to the affected accounts after verifying their ownership; invalidate their sessions by incrementing
+`session_version`. Restart after resolving conflicts. No existing account data is automatically rewritten.
+
+```sql
+SELECT identifier, array_agg(DISTINCT id) AS account_ids
+FROM (
+    SELECT id, lower(trim(username)) AS identifier FROM users
+    UNION ALL
+    SELECT id, lower(trim(email)) AS identifier FROM users WHERE email IS NOT NULL
+) identifiers
+GROUP BY identifier HAVING count(DISTINCT id) > 1;
+```
+
 ## Endpoints
 
 ```text

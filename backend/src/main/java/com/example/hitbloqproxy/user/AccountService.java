@@ -6,19 +6,20 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import java.util.Locale;
+
 import java.util.UUID;
 
 @Service
 public class AccountService {
-    private static final int MIN_USERNAME_LENGTH = 3;
-    private static final int MAX_USERNAME_LENGTH = 50;
+
     private final UserAccountRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AccountIdentifiers identifiers;
 
-    public AccountService(UserAccountRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AccountService(UserAccountRepository userRepository, PasswordEncoder passwordEncoder, AccountIdentifiers identifiers) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.identifiers = identifiers;
     }
 
     @Transactional
@@ -27,15 +28,16 @@ public class AccountService {
 
         verifyCurrentPassword(user, currentPassword);
 
-        String normalizedEmail = normalizeEmail(newEmail);
+        String normalizedEmail = identifiers.email(newEmail);
+        if (normalizedEmail == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email must not be empty");
+        }
 
         if (normalizedEmail.equalsIgnoreCase(user.getEmail())) {
             return;
         }
 
-        if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email address is already in use");
-        }
+        identifiers.requireAvailable(normalizedEmail, userId);
 
         user.setEmail(normalizedEmail);
         user.setSessionVersion(user.getSessionVersion() + 1);
@@ -47,15 +49,13 @@ public class AccountService {
 
         verifyCurrentPassword(user, currentPassword);
 
-        String normalizedUsername = normalizeUsername(newUsername);
+        String normalizedUsername = identifiers.username(newUsername);
 
         if (normalizedUsername.equalsIgnoreCase(user.getUsername())) {
             return;
         }
 
-        if (userRepository.existsByUsernameIgnoreCase(normalizedUsername)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username is already in use");
-        }
+        identifiers.requireAvailable(normalizedUsername, userId);
 
         user.setUsername(normalizedUsername);
         user.setSessionVersion(user.getSessionVersion() + 1);
@@ -88,38 +88,4 @@ public class AccountService {
         }
     }
 
-    private String normalizeEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeUsername(String username) {
-        if (username == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username must not be null");
-        }
-
-        String result = username.trim();
-
-        if (result.length() < MIN_USERNAME_LENGTH) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Username must contain at least " + MIN_USERNAME_LENGTH + " characters"
-            );
-        }
-
-        if (result.length() > MAX_USERNAME_LENGTH) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Username must not exceed " + MAX_USERNAME_LENGTH + " characters"
-            );
-        }
-
-        if (!result.matches("^[A-Za-z0-9._-]+$")) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Username may only contain letters, numbers, '.', '_' and '-'"
-            );
-        }
-
-        return result;
-    }
 }

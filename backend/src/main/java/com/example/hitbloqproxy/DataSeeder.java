@@ -40,7 +40,7 @@ public class DataSeeder implements CommandLineRunner {
         if (enabled) {
             BeatMap beatMap1 = new BeatMap();
             String pool1name = "Example Pool";
-            String username1 = "a";
+            String username1 = "devuser";
             String email1 = "a@a.com";
 
             beatMap1.setHitbloqId("example-hitbloq-id");
