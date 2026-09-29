@@ -15,6 +15,11 @@ mvn spring-boot:run
 
 The proxy starts on port `3001`, matching the original Express app.
 
+Cross-origin browser access is denied by default. If the frontend is hosted on a separate origin,
+set `APP_CORS_ALLOWED_ORIGINS` to its exact origin (or a comma-separated list), without trailing
+slashes or wildcards. Same-origin deployments need no setting. The `dev` profile allows
+`http://localhost:5173` and `http://127.0.0.1:5173` unless overridden.
+
 ## Endpoints
 
 ```text
