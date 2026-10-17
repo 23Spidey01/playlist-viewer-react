@@ -18,6 +18,7 @@ import AccountMenu from "./components/AccountMenu";
 import LoginPage from "./components/LoginPage";
 import ApiKeysPage from "./components/ApiKeysPage";
 import AccountSettingsPage from "./components/AccountSettingsPage";
+import ComparePoolsPage from "./components/ComparePoolsPage";
 import "./components/pixel-ui.css";
 
 interface PoolDetailed {
@@ -78,13 +79,13 @@ const TopBar: React.FC<{
       ))}
     </div>
 
-    <button className="pixel-btn with-icon shrink-0">
+    <Link to="/compare" className="pixel-btn with-icon shrink-0">
       <span className="pixel-compare-icon">
         <i />
         <i />
       </span>
       Compare Pools
-    </button>
+    </Link>
 
     <AccountMenu />
   </div>
@@ -226,6 +227,7 @@ const App: React.FC = () => {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/api-keys" element={<ApiKeysPage />} />
               <Route path="/account" element={<AccountSettingsPage />} />
+              <Route path="/compare" element={<ComparePoolsPage pools={pools} />} />
             </Routes>
           </div>
         </Router>

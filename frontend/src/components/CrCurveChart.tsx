@@ -1,21 +1,41 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Hitbloq's cr_curve: a function from accuracy (0 = 0%, 1 = 100%) to a
-// score multiplier — piecewise-linear between the given points, per the
-// API's own "type": "linear". Real CR for a play is
-// `stars * 50 * multiplier(accuracy)` (see DaFluffyPotato/hitbloq's
-// cr_formulas.py, calculate_cr). Since this chart is pool-wide rather
-// than for one song, it's scaled against the pool's hardest ranked
-// difficulty (maxStars) to show real, representative CR numbers instead
-// of the bare 0-ish multiplier. Shown next to the leaderboard in
-// PoolHeader.tsx so mods can see the shape of the curve at a glance.
+// score multiplier. Real CR for a play is `stars * 50 * multiplier(accuracy)`
+// (see DaFluffyPotato/hitbloq's cr_formulas.py, calculate_cr). Two curve
+// shapes exist there:
+//  - "linear": piecewise-linear between explicit [accuracy, multiplier]
+//    points (cr_formulas.py's linear_curve).
+//  - "basic": a baseline/cutoff/exponential formula with no points at
+//    all (cr_formulas.py's base_curve) — pools like "vocaloid" use this
+//    one. Missing this case is why some pools showed no chart at all.
+// Since this chart is pool-wide rather than for one song, it's scaled
+// against the pool's hardest ranked difficulty (maxStars) to show real,
+// representative CR numbers instead of the bare 0-ish multiplier. Shown
+// next to the leaderboard in PoolHeader.tsx so mods can see the shape
+// of the curve at a glance.
 type CrCurvePoint = [number, number];
+
+type LinearCurve = { type: "linear"; points: CrCurvePoint[] };
+type BasicCurve = {
+  type: "basic";
+  baseline?: number;
+  cutoff?: number;
+  exponential?: number;
+};
+type CurveData = LinearCurve | BasicCurve;
 
 const CR_PER_STAR_AT_MULTIPLIER_1 = 50;
 
 const MIN_STARS = 1;
 const MAX_STARS = 50;
 const STARS_STEP = 0.5;
+
+// Only used to draw a smooth line for "basic" curves, which have no
+// points of their own to plot — "linear" curves render their exact
+// points instead, so a sharp/late spike (real pools have these) isn't
+// smeared out by a fixed sampling grid.
+const BASIC_CURVE_SAMPLES = 64;
 
 // Sized to fit the same 176px-tall header column the leaderboard
 // uses (see .pixel-pool-header-chart) — no room for axis labels or a
@@ -26,10 +46,10 @@ const PAD = 4;
 const PLOT_W = WIDTH - PAD * 2;
 const PLOT_H = HEIGHT - PAD * 2;
 
-// Piecewise-linear interpolation matching the curve's own "type":
-// "linear" — the value at an arbitrary x between two defined points
-// is a straight-line blend between them, same as Hitbloq computes it.
-function interpolate(points: CrCurvePoint[], x: number): number {
+// Piecewise-linear interpolation matching linear_curve's own behavior
+// — the value at an arbitrary x between two defined points is a
+// straight-line blend between them, same as Hitbloq computes it.
+function interpolateLinear(points: CrCurvePoint[], x: number): number {
   if (points.length === 0) return 0;
   if (x <= points[0][0]) return points[0][1];
   for (let i = 1; i < points.length; i++) {
@@ -44,12 +64,31 @@ function interpolate(points: CrCurvePoint[], x: number): number {
   return points[points.length - 1][1];
 }
 
+// Mirrors cr_formulas.py's base_curve exactly, just working in 0-1
+// accuracy fractions throughout instead of 0-100 percentages.
+function evaluateBasicCurve(curve: BasicCurve, x: number): number {
+  const baseline = curve.baseline ?? 0.78;
+  const cutoff = curve.cutoff ?? 0.5;
+  const exponential = curve.exponential ?? 2.5;
+  if (x < baseline) return x * cutoff;
+  const denom = 1 - baseline;
+  const t = denom > 0 ? (x - baseline) / denom : 0;
+  return x * cutoff + (1 - cutoff) * Math.pow(t, exponential);
+}
+
+function multiplierAt(curve: CurveData, x: number): number {
+  const clamped = Math.min(1, Math.max(0, x));
+  return curve.type === "linear"
+    ? interpolateLinear(curve.points, clamped)
+    : evaluateBasicCurve(curve, clamped);
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
 const CrCurveChart: React.FC<{ poolId: string; maxStars?: number }> = ({ poolId, maxStars }) => {
-  const [rawPoints, setRawPoints] = useState<CrCurvePoint[] | null>(null);
+  const [curve, setCurve] = useState<CurveData | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverX, setHoverX] = useState<number | null>(null);
   // null = "not touched yet, follow the pool's own hardest difficulty".
@@ -58,16 +97,28 @@ const CrCurveChart: React.FC<{ poolId: string; maxStars?: number }> = ({ poolId,
 
   useEffect(() => {
     let cancelled = false;
-    setRawPoints(null);
+    setCurve(null);
     setSimulatedStars(null);
     fetch(`http://localhost:3001/proxy/ranked_list/${poolId}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        const pts = data?.cr_curve?.points;
-        if (Array.isArray(pts) && pts.length > 0) {
-          setRawPoints([...pts].sort((a, b) => a[0] - b[0]));
+        const raw = data?.cr_curve;
+        if (raw?.type === "linear" && Array.isArray(raw.points) && raw.points.length > 0) {
+          setCurve({
+            type: "linear",
+            points: [...(raw.points as CrCurvePoint[])].sort((a, b) => a[0] - b[0]),
+          });
+        } else if (raw?.type === "basic") {
+          setCurve({
+            type: "basic",
+            baseline: raw.baseline,
+            cutoff: raw.cutoff,
+            exponential: raw.exponential,
+          });
         }
+        // Any other/unrecognized curve type: leave curve unset, chart
+        // just doesn't render rather than guessing at its shape.
       })
       .catch(() => {
         // Supplementary info, not critical — fail quietly, same as
@@ -82,11 +133,26 @@ const CrCurveChart: React.FC<{ poolId: string; maxStars?: number }> = ({ poolId,
   // the bare multiplier) if the pool has no star-rated songs yet.
   const defaultStars = clamp(maxStars && maxStars > 0 ? maxStars : 1, MIN_STARS, MAX_STARS);
   const stars = simulatedStars ?? defaultStars;
+
+  // The shape to draw: a linear curve's own points (exact, so a sharp
+  // late spike stays sharp), or a fixed sampling of a basic curve
+  // (which has no points of its own).
+  const shape = useMemo<CrCurvePoint[] | null>(() => {
+    if (!curve) return null;
+    if (curve.type === "linear") return curve.points;
+    const samples: CrCurvePoint[] = [];
+    for (let i = 0; i <= BASIC_CURVE_SAMPLES; i++) {
+      const x = i / BASIC_CURVE_SAMPLES;
+      samples.push([x, evaluateBasicCurve(curve, x)]);
+    }
+    return samples;
+  }, [curve]);
+
   const points = useMemo<CrCurvePoint[] | null>(() => {
-    if (!rawPoints) return null;
+    if (!shape) return null;
     const scale = stars * CR_PER_STAR_AT_MULTIPLIER_1;
-    return rawPoints.map(([x, y]) => [x, y * scale] as CrCurvePoint);
-  }, [rawPoints, stars]);
+    return shape.map(([x, y]) => [x, y * scale] as CrCurvePoint);
+  }, [shape, stars]);
 
   const maxY = useMemo(() => {
     if (!points) return 10;
@@ -118,9 +184,12 @@ const CrCurveChart: React.FC<{ poolId: string; maxStars?: number }> = ({ poolId,
     setHoverX(x);
   };
 
-  if (!points) return null;
+  if (!curve || !points) return null;
 
-  const hoverY = hoverX === null ? null : interpolate(points, hoverX);
+  // Evaluated exactly against the curve formula/points rather than by
+  // interpolating over `points` — matters for "basic" curves, whose
+  // rendered shape is only a fixed sampling of the real formula.
+  const hoverY = hoverX === null ? null : multiplierAt(curve, hoverX) * stars * CR_PER_STAR_AT_MULTIPLIER_1;
 
   return (
     <div className="pixel-pool-header-chart">

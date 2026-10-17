@@ -154,8 +154,10 @@ const PoolHeader: React.FC<PoolHeaderProps> = ({
           Recalculate CR
         </button>
         <button
-          className={`pixel-tab ml-auto${editMode ? " editing" : ""}`}
+          className={`pixel-tab ml-auto disabled:opacity-40 disabled:cursor-not-allowed${editMode ? " editing" : ""}`}
           onClick={onToggleEditMode}
+          disabled={editMode}
+          title={editMode ? "Use EXIT EDIT MODE below to leave edit mode" : undefined}
         >
           EDIT MODE
         </button>

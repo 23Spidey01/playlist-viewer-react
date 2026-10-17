@@ -197,17 +197,38 @@
   color: #b7c0d6;
 }
 
+/* Unlike .pixel-btn (see its own :disabled rule above), .pixel-tab
+   never had one — Tailwind's disabled:cursor-not-allowed utility
+   classes used at call sites (EDIT MODE, CLEAR) lose to this file's
+   own plain `cursor: pointer` above regardless, since both are
+   single-class-equivalent specificity and this stylesheet loads last.
+   Still shows a pointer on hover without this, even though the click
+   itself is already a no-op. */
+.pixel-tab:disabled {
+  cursor: default;
+}
+
+.pixel-tab:disabled:hover {
+  color: #6a7690;
+}
+
 /* Currently selected sort key. */
 .pixel-tab.active {
   background: var(--px-cyan-dark);
   color: #eafcff;
 }
 
-/* EDIT MODE toggle, once on — gold instead of the generic cyan .active,
-   to match the page-wide edit-mode vignette (see section 16). */
+/* EDIT MODE toggle, once on — grayed out rather than highlighted. The
+   barrier tape overlay (see .pixel-tape-wrap) lands at random
+   positions across the whole header, so a bright "active" look just
+   got hidden under the tape as often as it stood out. Leaving edit
+   mode now has a dedicated EXIT EDIT MODE button in the sticky
+   selection bar instead (always clear of the tape) — this one stays
+   clickable too, just de-emphasized since it's no longer the primary
+   way out. */
 .pixel-tab.editing {
-  background: var(--px-gold);
-  color: var(--px-outline);
+  background: rgba(255, 255, 255, 0.06);
+  color: #5a6478;
 }
 
 /* "Compare Pools" icon: two overlapping squares, drawn with two <i>

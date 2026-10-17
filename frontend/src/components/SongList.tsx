@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import SongCard from "./SongCard";
 import type { BSSongInfo, DetailedSong } from "./types";
 import { diffMap, charMap } from "./types";
+import CharacteristicLabel from "./CharacteristicLabel";
 import { useSongPoolCache } from "./useSongPoolCache";
 import { renderFunnyHahaPaulsSongs } from "./PoolFeatures/FunnyHahaPauls";
 import PoolHeader from "./PoolHeader";
@@ -16,6 +17,23 @@ interface SongListProps {
   // see .pixel-editmode-banner.
   editMode: boolean;
   onToggleEditMode: () => void;
+}
+
+// Guards against BeatSaver's hash lookup occasionally handing back
+// something that isn't a real MapDetail at all — not just the
+// single-vs-multi-hash shape difference above, but any other
+// unexpected body (an error payload, a partial object, etc.). Every
+// render path assumes song.metadata.songName exists unconditionally,
+// so letting anything else through crashes the whole page.
+function isMapDetail(value: unknown): value is BSSongInfo {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === "string" &&
+    typeof obj.metadata === "object" &&
+    obj.metadata !== null &&
+    typeof (obj.metadata as Record<string, unknown>).songName === "string"
+  );
 }
 
 type SongSortKey = "stars" | "name" | "newest" | "diffs";
@@ -93,7 +111,7 @@ const MissingSongCard: React.FC<{
       <div className="pixel-missing-song-diffs">
         {Object.entries(byCharacteristic).map(([characteristic, songsForChar]) => (
           <div key={characteristic} className="char-row">
-            <span className="char-label">{characteristic}</span>
+            <CharacteristicLabel characteristic={characteristic} />
             {songsForChar.map((song) => {
               const diffShort = song.song_id.split("_")[1];
               const difficulty = diffMap[diffShort] || diffShort;
@@ -184,7 +202,7 @@ const DuplicateSongCard: React.FC<{
               </span>
               {Object.entries(byCharacteristic).map(([characteristic, charEntries]) => (
                 <div key={characteristic} className="char-row">
-                  <span className="char-label">{characteristic}</span>
+                  <CharacteristicLabel characteristic={characteristic} />
                   {charEntries.map((entry) => {
                     const diffShort = entry.song_id.split("_")[1];
                     const difficulty = diffMap[diffShort] || diffShort;
@@ -208,6 +226,85 @@ const DuplicateSongCard: React.FC<{
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+};
+
+// One song's row in the "selected maps" tray (edit-mode action bar) —
+// a song picked anywhere in the (possibly hundreds-long) grid below
+// shows up here too, so the full selection is visible in one place
+// instead of only as a highlight buried wherever that card happens to
+// be scrolled to. Reuses the same cover/name/diff-badge look as
+// MissingSongCard/DuplicateSongCard above for visual consistency, just
+// without their own larger "count" chip — the diff badges themselves
+// double as the remove control.
+const SelectedSongChip: React.FC<{
+  hash: string;
+  song?: BSSongInfo;
+  selectedByChar: { [characteristic: string]: string[] };
+  starsByChar?: { [characteristic: string]: { [difficulty: string]: number } };
+  onToggleDiff: (characteristic: string, difficulty: string) => void;
+  onRemoveSong: () => void;
+}> = ({ hash, song, selectedByChar, starsByChar, onToggleDiff, onRemoveSong }) => {
+  const [coverBroken, setCoverBroken] = useState(false);
+  const cover = song?.versions?.[0]?.coverURL;
+  const name = song?.metadata.songName;
+
+  return (
+    <div className="pixel-missing-song">
+      <div className="pixel-missing-song-head">
+        {cover && !coverBroken ? (
+          <img
+            src={cover}
+            alt=""
+            className="pixel-missing-song-cover"
+            onError={() => setCoverBroken(true)}
+          />
+        ) : (
+          <div className="pixel-missing-song-cover pixel-thumb" />
+        )}
+        <div className="flex-1 min-w-0">
+          {name ? (
+            <div className="name" title={name}>
+              {name}
+            </div>
+          ) : (
+            <div className="hash as-name" title={hash}>
+              {hash}
+            </div>
+          )}
+        </div>
+        <button
+          className="pixel-stat-link"
+          onClick={onRemoveSong}
+          title="Deselect this song"
+        >
+          remove
+        </button>
+      </div>
+      <div className="pixel-missing-song-diffs">
+        {Object.entries(selectedByChar).map(([characteristic, diffs]) => (
+          <div key={characteristic} className="char-row">
+            <CharacteristicLabel characteristic={characteristic} />
+            {diffs.map((difficulty) => {
+              const stars = starsByChar?.[characteristic]?.[difficulty];
+              const starred = typeof stars === "number";
+              return (
+                <span
+                  key={difficulty}
+                  className={`${
+                    starred ? "pixel-badge starred" : `pixel-badge diff-${difficulty}`
+                  } pixel-badge-selectable selected`}
+                  onClick={() => onToggleDiff(characteristic, difficulty)}
+                >
+                  {difficulty}
+                  {starred && <b className="ml-1">★ {stars}</b>}
+                </span>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -245,6 +342,13 @@ const SongList: React.FC<SongListProps> = ({
     current: number;
     total: number;
   } | null>(null);
+  // Set when a pool load fails outright (e.g. Hitbloq 500s mid-page) so
+  // the loading indicator doesn't just sit there forever with nothing
+  // to show for it — see the fetchAllSongs try/catch below.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped by the "Retry" button to re-trigger the load effect below
+  // without needing poolId itself to change.
+  const [retryTick, setRetryTick] = useState(0);
   // Map for star ratings: hash -> characteristic -> difficulty -> stars
   const [starRatingMap, setStarRatingMap] = useState<
     Record<string, Record<string, Record<string, number>>>
@@ -359,68 +463,119 @@ const SongList: React.FC<SongListProps> = ({
     );
   };
 
+  // Read via a ref (always up to date) instead of depending on `cache`
+  // directly below — a pool with genuinely zero ranked songs used to
+  // fail the old `cache[poolId]?.songs?.length` check forever (0 is
+  // falsy), and with `cache` itself in the deps array, every fetch's
+  // own setCache() call made the effect re-fire and fetch again —
+  // an infinite loop that hammered Hitbloq until it started 500ing,
+  // which then left the "Loading ranked songs..." spinner stuck
+  // permanently since nothing caught the resulting fetch/JSON error.
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
+
   // Load all songs from the selected pool (Hitbloq API)
   useEffect(() => {
     if (!poolId) return;
-    // Check if songs are already in cache
-    if (cache[poolId]?.songs?.length) {
-      setSongs(cache[poolId].songs);
-      setBsSongs(cache[poolId].bsSongs);
-      setQueryHashByEntry(cache[poolId].queryHashByEntry || new Map());
-      setStarRatingMap(cache[poolId].starRatingMap);
+    // Check if this pool was already loaded (even if it turned out to
+    // have zero ranked songs — presence in the cache is what matters).
+    const cached = cacheRef.current[poolId];
+    if (cached) {
+      setSongs(cached.songs);
+      setBsSongs(cached.bsSongs);
+      setQueryHashByEntry(cached.queryHashByEntry || new Map());
+      setStarRatingMap(cached.starRatingMap);
       setLoading(false);
+      setLoadError(null);
       return;
     }
     setLoading(true);
+    setLoadError(null);
     setLoadStage("Loading ranked songs from Hitbloq...");
     setLoadProgress(null);
 
     const fetchAllSongs = async () => {
-      let page = 0;
-      let allSongs: DetailedSong[] = [];
-      while (true) {
-        setLoadStage(
-          `Loading ranked songs from Hitbloq (page ${page + 1})...`,
+      try {
+        // Hitbloq paginates ranked_list_detailed at 30 entries/page with
+        // no way to know the total up front, so pages used to be
+        // fetched one at a time — each a ~0.7-1s round trip to
+        // hitbloq.com, which adds up to minutes for a big pool like
+        // crv2 (~97 pages). Fetch PAGE_CONCURRENCY pages at once
+        // instead: a page short of 30 entries (including empty) marks
+        // the end, so within a batch we keep everything up to and
+        // including the first short page, then stop — any pages after
+        // it in the same batch were spare/wasted requests, not data
+        // loss, since a short page can't be followed by a full one.
+        const PAGE_CONCURRENCY = 6;
+        const PAGE_SIZE = 30;
+        let allSongs: DetailedSong[] = [];
+        let nextPage = 0;
+        let reachedEnd = false;
+        while (!reachedEnd) {
+          const batch = Array.from(
+            { length: PAGE_CONCURRENCY },
+            (_, i) => nextPage + i,
+          );
+          setLoadStage(
+            `Loading ranked songs from Hitbloq (page ${batch[0] + 1}-${batch[batch.length - 1] + 1})...`,
+          );
+          const batchResults = await Promise.all(
+            batch.map(async (page) => {
+              const res = await fetch(
+                `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`,
+              );
+              if (!res.ok) {
+                throw new Error(`Hitbloq returned ${res.status} on page ${page + 1}`);
+              }
+              const data = await res.json();
+              return Array.isArray(data) ? (data as DetailedSong[]) : [];
+            }),
+          );
+          for (const pageData of batchResults) {
+            allSongs = allSongs.concat(pageData);
+            if (pageData.length < PAGE_SIZE) {
+              reachedEnd = true;
+              break;
+            }
+          }
+          nextPage += PAGE_CONCURRENCY;
+        }
+        setSongs(allSongs);
+
+        // Load BeatSaver songs and write everything to cache!
+        const hashes = Array.from(
+          new Set(
+            allSongs.map((song) => song.song_id.split("_")[0].toLowerCase()),
+          ),
         );
-        const res = await fetch(
-          `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`,
+        setLoadStage("Fetching song data from BeatSaver...");
+        setLoadProgress({ current: 0, total: hashes.length });
+        const { songs: loadedBsSongs, queryHashByEntry: loadedQueryHashByEntry } =
+          await fetchBeatSaverSongs(hashes);
+
+        setBsSongs(loadedBsSongs);
+        setQueryHashByEntry(loadedQueryHashByEntry);
+        setLoading(false);
+        setStarRatingMap(buildStarRatingMap(allSongs));
+        setCache((old) => ({
+          ...old,
+          [poolId]: {
+            songs: allSongs,
+            bsSongs: loadedBsSongs,
+            queryHashByEntry: loadedQueryHashByEntry,
+            starRatingMap: buildStarRatingMap(allSongs),
+          },
+        }));
+      } catch (err) {
+        setLoading(false);
+        setLoadError(
+          err instanceof Error ? err.message : "Failed to load this pool.",
         );
-        const data = await res.json();
-        if (!Array.isArray(data) || data.length === 0) break;
-        allSongs = allSongs.concat(data);
-        if (data.length < 30) break; // Last page reached
-        page++;
       }
-      setSongs(allSongs);
-
-      // Load BeatSaver songs and write everything to cache!
-      const hashes = Array.from(
-        new Set(
-          allSongs.map((song) => song.song_id.split("_")[0].toLowerCase()),
-        ),
-      );
-      setLoadStage("Fetching song data from BeatSaver...");
-      setLoadProgress({ current: 0, total: hashes.length });
-      const { songs: loadedBsSongs, queryHashByEntry: loadedQueryHashByEntry } =
-        await fetchBeatSaverSongs(hashes);
-
-      setBsSongs(loadedBsSongs);
-      setQueryHashByEntry(loadedQueryHashByEntry);
-      setLoading(false);
-      setStarRatingMap(buildStarRatingMap(allSongs));
-      setCache((old) => ({
-        ...old,
-        [poolId]: {
-          songs: allSongs,
-          bsSongs: loadedBsSongs,
-          queryHashByEntry: loadedQueryHashByEntry,
-          starRatingMap: buildStarRatingMap(allSongs),
-        },
-      }));
     };
 
     fetchAllSongs();
-  }, [poolId, cache, setCache]);
+  }, [poolId, setCache, retryTick]);
 
   // Fetch BeatSaver info for all hashes (in chunks to avoid rate
   // limits). Every chunk is retried a few times with backoff before
@@ -448,46 +603,81 @@ const SongList: React.FC<SongListProps> = ({
     hashes: string[],
   ): Promise<{ songs: BSSongInfo[]; queryHashByEntry: Map<BSSongInfo, string> }> => {
     const CHUNK_SIZE = 50;
-    const DELAY_MS = 150;
+    const CONCURRENCY = 5;
     const MAX_ATTEMPTS = 4;
     const results: BSSongInfo[] = [];
     const queryHashByEntry = new Map<BSSongInfo, string>();
     const failedChunks: string[][] = [];
+
+    const chunks: string[][] = [];
     for (let i = 0; i < hashes.length; i += CHUNK_SIZE) {
-      const chunk = hashes.slice(i, i + CHUNK_SIZE);
-      const url = `https://api.beatsaver.com/maps/hash/${chunk.join(",")}`;
-      let data: Record<string, unknown> | null = null;
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`BeatSaver hash lookup failed: ${res.status}`);
-          data = await res.json();
-          break;
-        } catch {
-          if (attempt < MAX_ATTEMPTS - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+      chunks.push(hashes.slice(i, i + CHUNK_SIZE));
+    }
+    let completed = 0;
+    let nextChunk = 0;
+
+    // A handful of these workers run at once (instead of one chunk at
+    // a time with a fixed delay between each) so a pool with thousands
+    // of hashes doesn't spend a minute serially waiting on BeatSaver
+    // round trips it could've overlapped.
+    const worker = async () => {
+      while (true) {
+        const chunkIndex = nextChunk++;
+        if (chunkIndex >= chunks.length) return;
+        const chunk = chunks[chunkIndex];
+        const url = `https://api.beatsaver.com/maps/hash/${chunk.join(",")}`;
+        let data: Record<string, unknown> | null = null;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`BeatSaver hash lookup failed: ${res.status}`);
+            data = await res.json();
+            break;
+          } catch {
+            if (attempt < MAX_ATTEMPTS - 1) {
+              await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+            }
           }
         }
-      }
-      if (data) {
-        Object.entries(data).forEach(([queryHash, info]) => {
-          if (!info) return;
-          const song = info as BSSongInfo;
-          results.push(song);
-          queryHashByEntry.set(song, queryHash.toUpperCase());
+        if (data) {
+          // BeatSaver's bulk hash lookup returns a {hash: MapDetail}
+          // dictionary for 2+ hashes, but a BARE MapDetail (no hash
+          // wrapper at all) when the chunk happens to contain exactly
+          // one — which the final, smaller chunk of a hash list often
+          // does. Treating that shape as a dictionary (the branch
+          // below) iterates the map's own top-level fields as if each
+          // were its own result, pushing garbage entries that crash
+          // every .metadata.songName access on render — this is what
+          // was behind the pool page going blank after a reload.
+          if (chunk.length === 1 && isMapDetail(data)) {
+            const song = data as unknown as BSSongInfo;
+            results.push(song);
+            queryHashByEntry.set(song, chunk[0].toUpperCase());
+          } else {
+            Object.entries(data).forEach(([queryHash, info]) => {
+              if (!isMapDetail(info)) return;
+              const song = info as unknown as BSSongInfo;
+              results.push(song);
+              queryHashByEntry.set(song, queryHash.toUpperCase());
+            });
+          }
+        } else {
+          // Every retry failed — these hashes go missing from this run
+          // rather than silently taking the rest of the pool down with
+          // them; reported once at the end instead of per-chunk.
+          failedChunks.push(chunk);
+        }
+        completed += chunk.length;
+        setLoadProgress({
+          current: Math.min(completed, hashes.length),
+          total: hashes.length,
         });
-      } else {
-        // Every retry failed — these hashes go missing from this run
-        // rather than silently taking the rest of the pool down with
-        // them; reported once at the end instead of per-chunk.
-        failedChunks.push(chunk);
       }
-      setLoadProgress({
-        current: Math.min(i + CHUNK_SIZE, hashes.length),
-        total: hashes.length,
-      });
-      await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
-    }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, worker),
+    );
+
     if (failedChunks.length > 0) {
       const failedCount = failedChunks.reduce((sum, c) => sum + c.length, 0);
       console.warn(
@@ -522,6 +712,15 @@ const SongList: React.FC<SongListProps> = ({
   const hitbloqHashes = songs.map((song) =>
     song.song_id.split("_")[0].toUpperCase(),
   );
+
+  // hash -> its resolved BeatSaver data, for looking up cover/name
+  // of a selected song without scanning bsSongs every time — used by
+  // the "selected maps" tray in the edit-mode action bar below.
+  const bsSongByHash: Record<string, BSSongInfo> = {};
+  bsSongs.forEach((s) => {
+    const hash = s.versions?.[0]?.hash?.toUpperCase();
+    if (hash) bsSongByHash[hash] = s;
+  });
 
   // Hardest ranked difficulty in the pool — used to turn the pool's raw
   // cr_curve (an accuracy -> multiplier curve) into real CR numbers for
@@ -713,15 +912,40 @@ const SongList: React.FC<SongListProps> = ({
     setSelectedDiffs((prev) => {
       const prevChar = prev[hash]?.[characteristic] || [];
       const isSelected = prevChar.includes(difficulty);
-      return {
-        ...prev,
-        [hash]: {
-          ...prev[hash],
-          [characteristic]: isSelected
-            ? prevChar.filter((d) => d !== difficulty)
-            : [...prevChar, difficulty],
-        },
-      };
+
+      if (!isSelected) {
+        return {
+          ...prev,
+          [hash]: {
+            ...prev[hash],
+            [characteristic]: [...prevChar, difficulty],
+          },
+        };
+      }
+
+      // Deselecting — drop the characteristic entirely once it's down
+      // to zero diffs, and the song entirely once it has no
+      // characteristics left, instead of leaving an empty {} behind.
+      // Otherwise the song lingers in selectedDiffs with nothing
+      // actually selected under it — invisible in the grid (every
+      // badge there checks its own diff) but still shown as a ghost
+      // entry in the "selected maps" tray above, which iterates
+      // selectedDiffs directly.
+      const nextChar = prevChar.filter((d) => d !== difficulty);
+      const nextHashEntry = { ...prev[hash] };
+      if (nextChar.length > 0) {
+        nextHashEntry[characteristic] = nextChar;
+      } else {
+        delete nextHashEntry[characteristic];
+      }
+
+      const next = { ...prev };
+      if (Object.keys(nextHashEntry).length > 0) {
+        next[hash] = nextHashEntry;
+      } else {
+        delete next[hash];
+      }
+      return next;
     });
   };
 
@@ -1021,7 +1245,17 @@ const SongList: React.FC<SongListProps> = ({
           )}
         </div>
       )}
-      {!loading && (
+      {!loading && loadError && (
+        <div className="pixel-card pixel-card-static pixel-page-flyin" style={{ padding: 24, maxWidth: 480 }}>
+          <div className="text-sm text-[#b7c0d6] mb-3">
+            Couldn't load this pool: {loadError}
+          </div>
+          <button className="pixel-btn" onClick={() => setRetryTick((t) => t + 1)}>
+            Retry
+          </button>
+        </div>
+      )}
+      {!loading && !loadError && (
         <PoolHeader
           pool={pool}
           rankedDiffs={songs.length}
@@ -1052,38 +1286,74 @@ const SongList: React.FC<SongListProps> = ({
           className={`pixel-collapse${editMode ? " pixel-collapse-open" : ""}`}
         >
           <div className="pixel-collapse-inner">
-            <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 bg-neutral-900/95 border border-neutral-700 p-3 mb-6 shadow-lg">
-              <span className="pixel-font text-[10px] text-cyan-300 mr-1">
-                {selectedCount} SELECTED
-              </span>
-              <button
-                className="pixel-btn disabled:opacity-40"
-                disabled={selectedCount === 0 || !allSelectedAreUnranked}
-                onClick={rankAllSelected}
-              >
-                Rank All Selected
-              </button>
-              <button
-                className="pixel-btn secondary disabled:opacity-40"
-                disabled={selectedCount === 0}
-                onClick={setStarRatingForSelection}
-              >
-                Set Star Rating
-              </button>
-              <button
-                className="pixel-btn danger disabled:opacity-40"
-                disabled={selectedCount === 0 || !allSelectedAreRanked}
-                onClick={unrankAllSelected}
-              >
-                Unrank All Selected
-              </button>
-              <button
-                className="pixel-tab ml-auto disabled:opacity-40"
-                disabled={selectedCount === 0}
-                onClick={() => setSelectedDiffs({})}
-              >
-                CLEAR
-              </button>
+            <div className="sticky top-2 z-20 bg-neutral-900/95 border border-neutral-700 p-3 mb-6 shadow-lg">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="pixel-font text-[10px] text-cyan-300 mr-1">
+                  {selectedCount} SELECTED
+                </span>
+                <button
+                  className="pixel-btn disabled:opacity-40"
+                  disabled={selectedCount === 0 || !allSelectedAreUnranked}
+                  onClick={rankAllSelected}
+                >
+                  Rank All Selected
+                </button>
+                <button
+                  className="pixel-btn secondary disabled:opacity-40"
+                  disabled={selectedCount === 0}
+                  onClick={setStarRatingForSelection}
+                >
+                  Set Star Rating
+                </button>
+                <button
+                  className="pixel-btn danger disabled:opacity-40"
+                  disabled={selectedCount === 0 || !allSelectedAreRanked}
+                  onClick={unrankAllSelected}
+                >
+                  Unrank All Selected
+                </button>
+                <button
+                  className="pixel-tab ml-auto disabled:opacity-40"
+                  disabled={selectedCount === 0}
+                  onClick={() => setSelectedDiffs({})}
+                >
+                  CLEAR
+                </button>
+                <button
+                  className="pixel-tab"
+                  style={{ color: "#f3c542" }}
+                  onClick={onToggleEditMode}
+                >
+                  EXIT EDIT MODE
+                </button>
+              </div>
+
+              {/* Every currently selected song, collected here instead
+                  of staying wherever it happens to be scrolled to in
+                  the grid below — the whole point being that a
+                  selection made hundreds of cards apart stays visible
+                  as one place to review before acting on it. Clicking
+                  a diff badge here deselects it, same as clicking its
+                  twin down in the grid (they're the same selection
+                  state, just two views of it). */}
+              {selectedCount > 0 && (
+                <div className="flex flex-wrap gap-2 max-h-[280px] overflow-y-auto mt-3 pt-3 border-t border-neutral-700">
+                  {Object.entries(selectedDiffs).map(([hash, chars]) => (
+                    <div key={hash} className="w-full sm:w-[calc(50%-4px)] lg:w-[calc(33.333%-6px)]">
+                      <SelectedSongChip
+                        hash={hash}
+                        song={bsSongByHash[hash]}
+                        selectedByChar={chars}
+                        starsByChar={starRatingMap[hash]}
+                        onToggleDiff={(characteristic, difficulty) =>
+                          toggleDiffSelection(hash, characteristic, difficulty)
+                        }
+                        onRemoveSong={() => setSongSelection(hash, false, [])}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
