@@ -75,7 +75,7 @@ const AccountSettingsPage: React.FC = () => {
           / <span className="text-[#b7c0d6]">ACCOUNT</span>
         </span>
         <div className="flex-1" />
-        <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
+        <Link to="/" className="pixel-tab nav">
           ◂ ALL POOLS
         </Link>
         <AccountMenu />

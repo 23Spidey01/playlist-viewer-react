@@ -1,6 +1,8 @@
-# EPIC Hitploq admin tool
+# EPIC Hitbloq admin tool
 
-A web tool to managing Hitbloq pools.
+[![CI](https://github.com/23Spidey01/playlist-viewer-react/actions/workflows/ci.yml/badge.svg)](https://github.com/23Spidey01/playlist-viewer-react/actions/workflows/ci.yml)
+
+A web tool for managing Hitbloq pools.
 ![Landing page](./images/landing_page.png)
 
 
@@ -11,7 +13,7 @@ The backend exposes REST endpoints for proxying Hitbloq-related API calls and al
 The React frontend is built with Vite and can be served directly by Spring Boot from the `src/main/resources/static` directory. During development, the frontend can also run separately via the Vite dev server while forwarding API requests to the Spring Boot backend.
 
 ## Production
-Set the enviroment variables (example):
+Set the environment variables (example):
 ```json
 {
     "API_KEY_ENCRYPTION_KEY_BASE64": "hHvWqlA4lH9jF3a8Fn3M5hNdb6i4Brclb7nDfLe4S8Y=",
@@ -47,5 +49,5 @@ This is not needed as it only enables live reload for development. Run dev front
 cd frontend/
 npm run dev
 ```
-The live reoload frontend is reachable via [localhost:5173](localhost:5173)
+The live reload frontend is reachable via [localhost:5173](localhost:5173)
 

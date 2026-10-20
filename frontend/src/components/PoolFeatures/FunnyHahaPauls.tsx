@@ -1,19 +1,37 @@
+// FunnyHahaPauls.tsx — a one-off pool-specific song grid, swapped in by
+// SongList.tsx for poolId === "funny_haha_pauls" only. The one
+// difference from the plain grid every other pool uses: songs carrying
+// the pool's 20.69-star in-joke rating are pulled into their own "NEW
+// IN POOL" section up top (with a ribbon badge) instead of sorting
+// alongside everything else.
 import SongCard from "../SongCard";
-import type { BSSongInfo } from "../types";
+import type { BSSongInfo } from "../beatSaverTypes";
 
-export function renderFunnyHahaPaulsSongs(
-  bsSongs: BSSongInfo[],
-  starRatingMap: any,
-  poolId: string,
-  selectedDiffs: any,
-  toggleDiffSelection: any,
-  editMode: boolean,
+interface FunnyHahaPaulsSongsProps {
+  bsSongs: BSSongInfo[];
+  // hash -> characteristic -> difficulty -> star rating
+  starRatingMap: Record<string, Record<string, Record<string, number>>>;
+  poolId: string;
+  // hash -> characteristic -> selected difficulties
+  selectedDiffs: Record<string, Record<string, string[]>>;
+  toggleDiffSelection: (hash: string, characteristic: string, difficulty: string) => void;
+  editMode: boolean;
   setSongSelection?: (
     hash: string,
     select: boolean,
     diffs: { characteristic: string; difficulty: string }[],
-  ) => void
-) {
+  ) => void;
+}
+
+export default function FunnyHahaPaulsSongs({
+  bsSongs,
+  starRatingMap,
+  poolId,
+  selectedDiffs,
+  toggleDiffSelection,
+  editMode,
+  setSongSelection,
+}: FunnyHahaPaulsSongsProps) {
   // Mark songs with 20.69 stars as "new" and separate them from the rest
   const newSongs = bsSongs.filter((song) => {
     const hash = song.versions?.[0]?.hash?.toUpperCase();

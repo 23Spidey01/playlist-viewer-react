@@ -1,45 +1,40 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import { listApiKeys, createApiKey, updateApiKey, deleteApiKey, type ApiKeySummary } from "./authApi";
 import { alertDialog, confirmDialog } from "./dialogStore";
 import AccountMenu from "./AccountMenu";
+import { usePools } from "./usePools";
 import logo from "../assets/Logo.png";
-
-interface PoolOption {
-  id: string;
-  title: string;
-}
 
 const ApiKeysPage: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
-  const [keys, setKeys] = useState<ApiKeySummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [pools, setPools] = useState<PoolOption[]>([]);
+  const { pools } = usePools();
+  const queryClient = useQueryClient();
+
+  const { data: keys = [], isLoading: loading } = useQuery({
+    queryKey: ["apiKeys"],
+    queryFn: listApiKeys,
+    enabled: Boolean(user),
+  });
+  const invalidateKeys = () => queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
+
   const [pool, setPool] = useState("");
   const [manualPool, setManualPool] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    listApiKeys().then((data) => {
-      setKeys(data);
-      setLoading(false);
-    });
-  }, [user]);
-
-  useEffect(() => {
-    fetch("http://localhost:3001/proxy/map_pools_detailed")
-      .then((res) => res.json())
-      .then((data) =>
-        setPools(data.map((p: { id: string; title: string }) => ({ id: p.id, title: p.title }))),
-      )
-      .catch(() => setPools([]));
-  }, []);
-
-  const refresh = async () => setKeys(await listApiKeys());
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      editingId
+        ? updateApiKey(editingId, pool.trim(), apiKey.trim())
+        : createApiKey(pool.trim(), apiKey.trim()),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteApiKey(id),
+  });
+  const busy = saveMutation.isPending || deleteMutation.isPending;
 
   const startEdit = (k: ApiKeySummary) => {
     setEditingId(k.id);
@@ -61,11 +56,7 @@ const ApiKeysPage: React.FC = () => {
       return;
     }
 
-    setBusy(true);
-    const result = editingId
-      ? await updateApiKey(editingId, pool.trim(), apiKey.trim())
-      : await createApiKey(pool.trim(), apiKey.trim());
-    setBusy(false);
+    const result = await saveMutation.mutateAsync();
 
     if (!result.ok) {
       await alertDialog(result.error || "Could not save the API key.");
@@ -73,7 +64,7 @@ const ApiKeysPage: React.FC = () => {
     }
 
     cancelEdit();
-    refresh();
+    invalidateKeys();
   };
 
   const handleDelete = async (k: ApiKeySummary) => {
@@ -84,7 +75,8 @@ const ApiKeysPage: React.FC = () => {
     });
     if (!ok) return;
 
-    if (await deleteApiKey(k.id)) refresh();
+    const deleted = await deleteMutation.mutateAsync(k.id);
+    if (deleted) invalidateKeys();
     else await alertDialog("Could not delete the API key.");
   };
 
@@ -105,7 +97,7 @@ const ApiKeysPage: React.FC = () => {
           / <span className="text-[#b7c0d6]">API KEYS</span>
         </span>
         <div className="flex-1" />
-        <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
+        <Link to="/" className="pixel-tab nav">
           ◂ ALL POOLS
         </Link>
         <AccountMenu />

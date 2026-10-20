@@ -4,7 +4,7 @@
 import { createContext, useContext } from "react";
 import type { CurrentUser } from "./authApi";
 
-export interface AuthResult {
+interface AuthResult {
   ok: boolean;
   error?: string;
 }
@@ -12,8 +12,8 @@ export interface AuthResult {
 export interface AuthContextValue {
   user: CurrentUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<AuthResult>;
-  register: (email: string, password: string) => Promise<AuthResult>;
+  login: (username: string, password: string) => Promise<AuthResult>;
+  register: (username: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
 }
 

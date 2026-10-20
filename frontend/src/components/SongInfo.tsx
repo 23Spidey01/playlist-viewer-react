@@ -1,14 +1,16 @@
 // SongInfo.tsx — pixel design: difficulties grouped by characteristic,
 // ranked = gold with an outline ring, unranked = muted with a
 // difficulty-colored left edge. All API handlers are unchanged.
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useParams, Link, useLocation } from "react-router-dom";
-import type { BSSongInfo, BSDifficulty } from "./types";
-import { characteristicLabels, characteristicIcons } from "./types";
+import { useQuery } from "@tanstack/react-query";
+import type { BSSongInfo, BSDifficulty } from "./beatSaverTypes";
+import { characteristicLabels, characteristicIcons } from "./hitbloqTypes";
 import logo from "../assets/Logo.png";
 import beatsaverIcon from "../assets/Icons/beatsaver.png";
 import beatleaderIcon from "../assets/Icons/beatleader.svg";
 import { askApiKey, alertDialog, confirmDialog, promptText } from "./dialogStore";
+import { postToPool } from "./hitbloqApi";
 import AccountMenu from "./AccountMenu";
 import "./pixel-ui.css";
 
@@ -25,17 +27,29 @@ const SongInfo: React.FC = () => {
   const starRatings: Record<string, Record<string, number>> | undefined =
     location.state?.starRatings;
 
-  const [song, setSong] = useState<BSSongInfo | null>(null);
   const [ranking, setRanking] = useState<{ [key: string]: boolean }>({});
 
-  useEffect(() => {
-    if (!id) return;
-    fetch(`https://api.beatsaver.com/maps/id/${id}`)
-      .then((res) => res.json())
-      .then(setSong);
-  }, [id]);
+  const {
+    data: song,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["song", id],
+    queryFn: async (): Promise<BSSongInfo> => {
+      const res = await fetch(`https://api.beatsaver.com/maps/id/${id}`);
+      if (!res.ok) throw new Error(`BeatSaver returned ${res.status} for this map`);
+      return res.json();
+    },
+    enabled: Boolean(id),
+  });
 
-  if (!song)
+  if (isError)
+    return (
+      <div className="pixel-font text-[11px] text-orange-400 p-6">
+        Couldn't load this song's data. Try reloading.
+      </div>
+    );
+  if (isLoading || !song)
     return <div className="pixel-font text-[11px] text-cyan-300 p-6">Loading song data...</div>;
 
   const difficulties: BSDifficulty[] = song.versions?.[0]?.diffs || [];
@@ -58,12 +72,7 @@ const SongInfo: React.FC = () => {
     return key;
   };
 
-  const recalcCR = (key: string) =>
-    fetch("http://localhost:3001/proxy/recalculate_cr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, pool: poolId }),
-    });
+  const recalcCR = (key: string) => postToPool("recalculate_cr", { key, pool: poolId });
 
   const setStarRating = async (key: string, formattedId: string) => {
     const isAutomatic = await confirmDialog(
@@ -71,12 +80,7 @@ const SongInfo: React.FC = () => {
       { okLabel: "Automatic", cancelLabel: "Manual" },
     );
     if (isAutomatic) {
-      const res = await fetch("http://localhost:3001/proxy/set_automatic", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, pool: poolId, song: formattedId }),
-      });
-      return res.json();
+      return postToPool("set_automatic", { key, pool: poolId, song: formattedId });
     }
     let rating = await promptText("What star rating should be set?", {
       placeholder: "e.g. 8.5",
@@ -91,12 +95,7 @@ const SongInfo: React.FC = () => {
       await alertDialog("Invalid star rating.");
       return null;
     }
-    const res = await fetch("http://localhost:3001/proxy/set_manual", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, pool: poolId, song: formattedId, rating: ratingNum }),
-    });
-    return res.json();
+    return postToPool("set_manual", { key, pool: poolId, song: formattedId, rating: ratingNum });
   };
 
   const makeHandlers = (characteristic: string, difficulty: string) => {
@@ -110,24 +109,23 @@ const SongInfo: React.FC = () => {
       busy();
       const key = await askKey();
       if (!key) return done();
-      const resRank = await fetch("http://localhost:3001/proxy/rank", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, pool: poolId, song: formattedId }),
-      });
-      const resultRank = await resRank.json();
-      if (resultRank.status !== "success") {
-        await alertDialog("Error ranking: " + (resultRank.error || resultRank.status));
+      const rankResult = await postToPool("rank", { key, pool: poolId, song: formattedId });
+      if (!rankResult.ok) {
+        await alertDialog(
+          "Error ranking: " + (rankResult.result?.error || rankResult.result?.status),
+        );
         return done();
       }
-      const resultSet = await setStarRating(key, formattedId);
-      if (!resultSet) return done();
-      if (resultSet.status === "success") {
+      const setResult = await setStarRating(key, formattedId);
+      if (!setResult) return done();
+      if (setResult.ok) {
         await alertDialog("Difficulty ranked and star rating set!");
         await recalcCR(key);
         window.location.reload();
       } else {
-        await alertDialog("Error setting star rating: " + (resultSet.error || resultSet.status));
+        await alertDialog(
+          "Error setting star rating: " + (setResult.result?.error || setResult.result?.status),
+        );
       }
       done();
     };
@@ -137,18 +135,13 @@ const SongInfo: React.FC = () => {
       busy();
       const key = await askKey();
       if (!key) return done();
-      const res = await fetch("http://localhost:3001/proxy/unrank", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, pool: poolId, song: formattedId }),
-      });
-      const result = await res.json();
-      if (result.status === "success") {
+      const result = await postToPool("unrank", { key, pool: poolId, song: formattedId });
+      if (result.ok) {
         await alertDialog("Difficulty unranked!");
         await recalcCR(key);
         window.location.reload();
       } else {
-        await alertDialog("Error: " + (result.error || result.status));
+        await alertDialog("Error: " + (result.result?.error || result.result?.status));
       }
       done();
     };
@@ -158,14 +151,16 @@ const SongInfo: React.FC = () => {
       busy();
       const key = await askKey();
       if (!key) return done();
-      const resultSet = await setStarRating(key, formattedId);
-      if (!resultSet) return done();
-      if (resultSet.status === "success") {
+      const setResult = await setStarRating(key, formattedId);
+      if (!setResult) return done();
+      if (setResult.ok) {
         await alertDialog("Star rating set!");
         await recalcCR(key);
         window.location.reload();
       } else {
-        await alertDialog("Error setting star rating: " + (resultSet.error || resultSet.status));
+        await alertDialog(
+          "Error setting star rating: " + (setResult.result?.error || setResult.result?.status),
+        );
       }
       done();
     };
@@ -195,11 +190,7 @@ const SongInfo: React.FC = () => {
           / <span className="text-[#b7c0d6]">{song.metadata.songName}</span>
         </span>
         <div className="flex-1" />
-        <Link
-          to={poolId ? `/pool/${poolId}` : "/"}
-          className="pixel-tab"
-          style={{ color: "#b7c0d6" }}
-        >
+        <Link to={poolId ? `/pool/${poolId}` : "/"} className="pixel-tab nav">
           ◂ BACK TO POOL
         </Link>
         <AccountMenu />

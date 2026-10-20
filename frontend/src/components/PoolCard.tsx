@@ -1,17 +1,8 @@
-// PoolCard.tsx — banner-header layout (option 1b)
+// PoolCard.tsx — a pool's card on the home grid: banner image with the
+// title overlaid, author/description, and player count/popularity stats.
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-interface PoolDetailed {
-  id: string;
-  title: string;
-  image: string;
-  short_description: string;
-  author: string;
-  player_count: number;
-  popularity: number;
-  banner_image?: string;
-}
+import type { PoolDetailed } from "./hitbloqTypes";
 
 // "A, B, and C" -> "A, B +1" when there are more than 2 names.
 const formatAuthors = (author: string) => {

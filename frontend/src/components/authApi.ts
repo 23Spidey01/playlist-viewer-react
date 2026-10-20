@@ -5,8 +5,9 @@
 // attaches the CSRF header for mutations and uses redirect: "manual"
 // so an unauthenticated request comes back as an opaque redirect
 // instead of silently following Spring Security's /login redirect and
-// returning an HTML page where JSON was expected.
-const BASE = "http://localhost:3001";
+// returning an HTML page where JSON was expected. Paths are relative
+// (not an absolute http://localhost:3001 origin) — see hitbloqApi.ts's
+// top comment for why.
 
 export interface CurrentUser {
   username: string;
@@ -28,7 +29,7 @@ let csrf: { headerName: string; token: string } | null = null;
 
 async function getCsrf(): Promise<{ headerName: string; token: string }> {
   if (csrf) return csrf;
-  const res = await fetch(`${BASE}/api/auth/csrf`, { credentials: "include" });
+  const res = await fetch("/api/auth/csrf", { credentials: "include" });
   const data = await res.json();
   csrf = { headerName: data.headerName, token: data.token };
   return csrf;
@@ -43,7 +44,7 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
     headers.set(headerName, token);
   }
 
-  return fetch(`${BASE}${path}`, {
+  return fetch(path, {
     ...options,
     headers,
     credentials: "include",
@@ -69,7 +70,7 @@ export async function login(username: string, password: string): Promise<ApiResu
   const { headerName, token } = await getCsrf();
   const body = new URLSearchParams({ username, password });
 
-  const res = await fetch(`${BASE}/api/auth/login`, {
+  const res = await fetch("/api/auth/login", {
     method: "POST",
     credentials: "include",
     headers: {
@@ -96,7 +97,7 @@ export async function login(username: string, password: string): Promise<ApiResu
 export async function register(username: string, password: string): Promise<ApiResult> {
   const { headerName, token } = await getCsrf();
 
-  const res = await fetch(`${BASE}/api/auth/register`, {
+  const res = await fetch("/api/auth/register", {
     method: "POST",
     credentials: "include",
     headers: {

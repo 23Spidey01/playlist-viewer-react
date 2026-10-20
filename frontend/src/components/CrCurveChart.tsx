@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 // Hitbloq's cr_curve: a function from accuracy (0 = 0%, 1 = 100%) to a
 // score multiplier. Real CR for a play is `stars * 50 * multiplier(accuracy)`
@@ -87,46 +88,53 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+// Parses the proxy's raw cr_curve payload into CurveData, or null for
+// an unrecognized/missing shape — the chart just doesn't render rather
+// than guessing at it.
+function parseCurve(raw: unknown): CurveData | null {
+  const r = raw as { type?: string; points?: unknown; baseline?: number; cutoff?: number; exponential?: number } | null | undefined;
+  if (r?.type === "linear" && Array.isArray(r.points) && r.points.length > 0) {
+    return {
+      type: "linear",
+      points: [...(r.points as CrCurvePoint[])].sort((a, b) => a[0] - b[0]),
+    };
+  }
+  if (r?.type === "basic") {
+    return {
+      type: "basic",
+      baseline: r.baseline,
+      cutoff: r.cutoff,
+      exponential: r.exponential,
+    };
+  }
+  return null;
+}
+
 const CrCurveChart: React.FC<{ poolId: string; maxStars?: number }> = ({ poolId, maxStars }) => {
-  const [curve, setCurve] = useState<CurveData | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverX, setHoverX] = useState<number | null>(null);
   // null = "not touched yet, follow the pool's own hardest difficulty".
   // Once the user drags the slider it's pinned until the pool changes.
   const [simulatedStars, setSimulatedStars] = useState<number | null>(null);
 
+  // Supplementary info, not critical — a failed fetch here just leaves
+  // `curve` undefined/null and the chart doesn't render, same as the
+  // old silent .catch().
+  const { data: curve } = useQuery({
+    queryKey: ["crCurve", poolId],
+    queryFn: async () => {
+      const res = await fetch(`/proxy/ranked_list/${poolId}`);
+      const data = await res.json();
+      return parseCurve(data?.cr_curve);
+    },
+    enabled: Boolean(poolId),
+  });
+
+  // A simulated star rating from the previous pool doesn't mean
+  // anything once poolId changes — this component can stay mounted
+  // across a pool switch (same route, different :id param).
   useEffect(() => {
-    let cancelled = false;
-    setCurve(null);
     setSimulatedStars(null);
-    fetch(`http://localhost:3001/proxy/ranked_list/${poolId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        const raw = data?.cr_curve;
-        if (raw?.type === "linear" && Array.isArray(raw.points) && raw.points.length > 0) {
-          setCurve({
-            type: "linear",
-            points: [...(raw.points as CrCurvePoint[])].sort((a, b) => a[0] - b[0]),
-          });
-        } else if (raw?.type === "basic") {
-          setCurve({
-            type: "basic",
-            baseline: raw.baseline,
-            cutoff: raw.cutoff,
-            exponential: raw.exponential,
-          });
-        }
-        // Any other/unrecognized curve type: leave curve unset, chart
-        // just doesn't render rather than guessing at its shape.
-      })
-      .catch(() => {
-        // Supplementary info, not critical — fail quietly, same as
-        // this page already does for other best-effort fetches.
-      });
-    return () => {
-      cancelled = true;
-    };
   }, [poolId]);
 
   // Real CR = stars * 50 * multiplier. Fall back to 1 star (i.e. show

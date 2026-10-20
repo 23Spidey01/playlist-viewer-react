@@ -63,7 +63,7 @@ const LoginPage: React.FC = () => {
           />
         </Link>
         <div className="flex-1" />
-        <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
+        <Link to="/" className="pixel-tab nav">
           ◂ ALL POOLS
         </Link>
       </div>

@@ -48,6 +48,7 @@
   --px-cyan-dark: #1a6f96;
   --px-gold:      #f3c542;
   --px-gold-dark: #b8860f;
+  --px-muted:     #b7c0d6; /* secondary text/links — brighter than body copy, dimmer than a heading */
   --px-unit: 4px; /* base grid unit most border/shadow widths derive from */
 }
 
@@ -194,7 +195,15 @@
 }
 
 .pixel-tab:hover {
-  color: #b7c0d6;
+  color: var(--px-muted);
+}
+
+/* A topbar/breadcrumb nav link (back to pool, LOG IN, API KEYS, ...) —
+   brighter at rest than a plain filter/sort tab, same color it would
+   hover to anyway. Replaces the inline style={{ color: "#b7c0d6" }}
+   every one of these used to repeat at its own call site. */
+.pixel-tab.nav {
+  color: var(--px-muted);
 }
 
 /* Unlike .pixel-btn (see its own :disabled rule above), .pixel-tab
@@ -399,7 +408,7 @@
   padding: 3px 8px;
   font-size: 11px;
   background: var(--px-outline);
-  color: #b7c0d6;
+  color: var(--px-muted);
   box-shadow: 0 0 0 2px rgba(255,255,255,0.08);
 }
 
@@ -1236,7 +1245,7 @@
    fetch, but Hitbloq's own ranked-list response still carries a name/
    cover/star-rating per difficulty from when it was ranked, used here
    instead of just the bare hash. Falls back to the hash alone (see
-   MissingSongCard) for the rare entry with no name on record either. */
+   HitbloqSongCard) for the rare entry with no name on record either. */
 .pixel-missing-song {
   background: var(--px-outline);
   padding: 8px 10px;
@@ -1538,7 +1547,7 @@
 .pixel-diff-tile .label {
   font-size: 14px;
   font-weight: 700;
-  color: #b7c0d6;
+  color: var(--px-muted);
 }
 
 /* Bright tints so the difficulty name stays legible on the dark
@@ -2095,7 +2104,7 @@
   padding: 20px;
   text-align: center;
   cursor: pointer;
-  color: #b7c0d6;
+  color: var(--px-muted);
   font-size: 12px;
   background: var(--px-outline);
   background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
@@ -2182,7 +2191,7 @@
   white-space: nowrap;
 }
 .pixel-toggle-chip:hover {
-  color: #b7c0d6;
+  color: var(--px-muted);
 }
 .pixel-toggle-chip.on {
   background: var(--px-cyan-dark);
@@ -2208,9 +2217,7 @@
 /* Small colored dot per available difficulty on a compact search
    result — a quick "what's on this map" glance without the room a
    full diff list would need in a 2-column grid. Same color scheme as
-   .pixel-diff-tile/.pixel-badge's per-difficulty colors, not the older
-   diffColors Tailwind map in types.ts (different, mismatched colors —
-   that one predates this page's pixel-art pass). */
+   .pixel-diff-tile/.pixel-badge's per-difficulty colors. */
 .pixel-diff-dots {
   display: flex;
   gap: 3px;

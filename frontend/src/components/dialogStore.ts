@@ -15,20 +15,19 @@
 
 import { getApiKeyForPool } from "./authApi";
 
-export interface ConfirmOptions {
+interface ConfirmOptions {
   okLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
 }
 
-export interface PromptOptions {
+interface PromptOptions {
   placeholder?: string;
-  defaultValue?: string;
   okLabel?: string;
   cancelLabel?: string;
 }
 
-export interface AlertOptions {
+interface AlertOptions {
   okLabel?: string;
 }
 

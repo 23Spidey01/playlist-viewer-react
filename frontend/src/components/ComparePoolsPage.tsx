@@ -1,152 +1,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import logo from "../assets/Logo.png";
 import AccountMenu from "./AccountMenu";
-import type { PoolDetailed } from "./PoolHeader";
-import type { DetailedSong } from "./types";
-import { diffMap, charMap } from "./types";
-import CharacteristicLabel from "./CharacteristicLabel";
+import type { DetailedSong } from "./hitbloqTypes";
+import { diffMap, charMap } from "./hitbloqTypes";
+import HitbloqSongCard from "./HitbloqSongCard";
 import { askApiKey, alertDialog, confirmDialog } from "./dialogStore";
+import { postToPool } from "./hitbloqApi";
+import { usePoolRankedSongs } from "./usePoolRankedSongs";
+import { usePools } from "./usePools";
+import { songKey } from "./comparePoolsLogic";
 
-// Fetches every ranked difficulty in a pool via Hitbloq's paginated
-// ranked_list_detailed, batching page requests the same way SongList's
-// own pool loader does (see its comment there for why: one page at a
-// time turns a big pool into a multi-minute wait). Kept as a separate,
-// smaller copy here instead of shared — this page only ever needs the
-// bare Hitbloq data, no BeatSaver enrichment, no cross-component cache.
-async function fetchPoolSongs(poolId: string): Promise<DetailedSong[]> {
-  const PAGE_CONCURRENCY = 6;
-  const PAGE_SIZE = 30;
-  let allSongs: DetailedSong[] = [];
-  let nextPage = 0;
-  let reachedEnd = false;
-  while (!reachedEnd) {
-    const batch = Array.from({ length: PAGE_CONCURRENCY }, (_, i) => nextPage + i);
-    const batchResults = await Promise.all(
-      batch.map(async (page) => {
-        const res = await fetch(
-          `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`,
-        );
-        if (!res.ok) {
-          throw new Error(`Hitbloq returned ${res.status} on page ${page + 1}`);
-        }
-        const data = await res.json();
-        return Array.isArray(data) ? (data as DetailedSong[]) : [];
-      }),
-    );
-    for (const pageData of batchResults) {
-      allSongs = allSongs.concat(pageData);
-      if (pageData.length < PAGE_SIZE) {
-        reachedEnd = true;
-        break;
-      }
-    }
-    nextPage += PAGE_CONCURRENCY;
-  }
-  return allSongs;
-}
-
-// Identity for "is this the same ranked difficulty" across two pools —
-// hash normalized to uppercase (Hitbloq's own data is consistent about
-// this, but cheap to guarantee), plus the raw difficulty/characteristic
-// short codes exactly as ranked.
-function songKey(song: DetailedSong): string {
-  const [hash, diffShort, charShort] = song.song_id.split("_");
-  return `${hash.toUpperCase()}_${diffShort}_${charShort}`;
-}
-
-// One song's section in the "ranked in both pools" list — same look as
-// SongList's "not found"/"duplicate rankings" panels (MissingSongCard),
-// since this is the same job: a hash grouping maps that are on Hitbloq
-// but have no live BeatSaver fetch backing this page, so name/cover
-// come from Hitbloq's own cached copy.
-const SharedSongCard: React.FC<{
-  hash: string;
-  entries: DetailedSong[];
-  selected: Set<string>;
-  onToggleDiff: (songId: string) => void;
-}> = ({ hash, entries, selected, onToggleDiff }) => {
-  const [coverBroken, setCoverBroken] = useState(false);
-  const songName = entries.find((s) => s.song_name)?.song_name;
-  const songCover = entries.find((s) => s.song_cover)?.song_cover;
-
-  const byCharacteristic: Record<string, DetailedSong[]> = {};
-  entries.forEach((song) => {
-    const charShort = song.song_id.split("_")[2];
-    const characteristic = charMap[charShort] || charShort;
-    (byCharacteristic[characteristic] ??= []).push(song);
-  });
-
-  return (
-    <div className="pixel-missing-song">
-      <div className="pixel-missing-song-head">
-        {songCover && !coverBroken ? (
-          <img
-            src={songCover}
-            alt=""
-            className="pixel-missing-song-cover"
-            onError={() => setCoverBroken(true)}
-          />
-        ) : (
-          <div className="pixel-missing-song-cover pixel-thumb" />
-        )}
-        <div className="flex-1 min-w-0">
-          {songName ? (
-            <>
-              <div className="name" title={songName}>
-                {songName}
-              </div>
-              <div className="hash" title={hash}>
-                {hash}
-              </div>
-            </>
-          ) : (
-            <div className="hash as-name" title={hash}>
-              {hash}
-            </div>
-          )}
-        </div>
-        <span className="count">
-          {entries.length} diff{entries.length === 1 ? "" : "s"}
-        </span>
-      </div>
-      <div className="pixel-missing-song-diffs">
-        {Object.entries(byCharacteristic).map(([characteristic, songsForChar]) => (
-          <div key={characteristic} className="char-row">
-            <CharacteristicLabel characteristic={characteristic} />
-            {songsForChar.map((song) => {
-              const diffShort = song.song_id.split("_")[1];
-              const difficulty = diffMap[diffShort] || diffShort;
-              const starred = typeof song.song_stars === "number";
-              const isSelected = selected.has(song.song_id);
-              return (
-                <span
-                  key={song.song_id}
-                  className={`${
-                    starred ? "pixel-badge starred" : `pixel-badge diff-${difficulty}`
-                  } pixel-badge-selectable${isSelected ? " selected" : ""}`}
-                  onClick={() => onToggleDiff(song.song_id)}
-                >
-                  {difficulty}
-                  {starred && <b className="ml-1">★ {song.song_stars}</b>}
-                </span>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const ComparePoolsPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
+const ComparePoolsPage: React.FC = () => {
+  const { pools } = usePools();
+  const queryClient = useQueryClient();
   const [poolAId, setPoolAId] = useState("");
   const [poolBId, setPoolBId] = useState("");
-  const [songsA, setSongsA] = useState<DetailedSong[] | null>(null);
-  const [songsB, setSongsB] = useState<DetailedSong[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [retryTick, setRetryTick] = useState(0);
   const [unrankFrom, setUnrankFrom] = useState<"a" | "b">("a");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -155,37 +25,41 @@ const ComparePoolsPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   const poolB = pools.find((p) => p.id === poolBId);
   const bothPicked = Boolean(poolAId && poolBId && poolAId !== poolBId);
 
+  // Both pools are independent — these two queries run concurrently
+  // rather than one after the other (same reasoning as the per-pool
+  // page-batching itself: no reason to serialize work that doesn't
+  // depend on itself), and share their cache with any other page that
+  // has loaded either pool's ranked list (see usePoolRankedSongs).
+  const {
+    data: songsA,
+    isLoading: loadingA,
+    error: errorA,
+    refetch: refetchA,
+  } = usePoolRankedSongs(poolAId, { enabled: bothPicked });
+  const {
+    data: songsB,
+    isLoading: loadingB,
+    error: errorB,
+    refetch: refetchB,
+  } = usePoolRankedSongs(poolBId, { enabled: bothPicked });
+
+  const loading = bothPicked && (loadingA || loadingB);
+  const firstError = errorA ?? errorB;
+  const loadError = firstError
+    ? firstError instanceof Error
+      ? firstError.message
+      : "Failed to load one of the pools."
+    : null;
+  const retry = () => {
+    refetchA();
+    refetchB();
+  };
+
+  // A fresh pool pick starts a clean slate — the previous pair's
+  // selection has nothing to do with this one.
   useEffect(() => {
-    if (!bothPicked) {
-      setSongsA(null);
-      setSongsB(null);
-      setLoadError(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
     setSelected(new Set());
-    // Both pools are independent — fetched concurrently rather than
-    // one after the other, same reasoning as the per-pool page-batching
-    // itself: no reason to serialize work that doesn't depend on itself.
-    Promise.all([fetchPoolSongs(poolAId), fetchPoolSongs(poolBId)])
-      .then(([a, b]) => {
-        if (cancelled) return;
-        setSongsA(a);
-        setSongsB(b);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setLoadError(err instanceof Error ? err.message : "Failed to load one of the pools.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [poolAId, poolBId, bothPicked, retryTick]);
+  }, [poolAId, poolBId]);
 
   // Every difficulty ranked under the exact same hash+difficulty+
   // characteristic in BOTH pools, grouped by hash for display — these
@@ -219,22 +93,6 @@ const ComparePoolsPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
 
   const targetPoolId = unrankFrom === "a" ? poolAId : poolBId;
   const targetPool = unrankFrom === "a" ? poolA : poolB;
-
-  const postToPool = async (path: string, body: unknown) => {
-    const res = await fetch(`http://localhost:3001/proxy/${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    let result: { status?: string; error?: string } | null = null;
-    try {
-      result = await res.json();
-    } catch {
-      // Non-JSON body (e.g. a raw-text 500) — ok below still resolves
-      // to false via res.ok.
-    }
-    return { ok: res.ok && result?.status === "success", result };
-  };
 
   const unrankEntries = async (entries: DetailedSong[], scope: "all" | "selected") => {
     if (entries.length === 0 || !targetPoolId) return;
@@ -278,11 +136,13 @@ const ComparePoolsPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
       // Drop the ones that actually succeeded from whichever side we
       // just unranked from, so the list reflects reality right away
       // instead of still showing them as duplicates until a reload.
-      if (unrankFrom === "a") {
-        setSongsA((old) => old?.filter((s) => !succeededIds.has(s.song_id)) ?? old);
-      } else {
-        setSongsB((old) => old?.filter((s) => !succeededIds.has(s.song_id)) ?? old);
-      }
+      // Updates the shared query cache directly (not just this page's
+      // own state), so a pool page or RankNewMaps visited afterward
+      // sees the same up-to-date list instead of its own stale copy.
+      queryClient.setQueryData<DetailedSong[]>(
+        ["poolRankedSongs", targetPoolId],
+        (old) => old?.filter((s) => !succeededIds.has(s.song_id)) ?? old,
+      );
       setSelected(new Set());
     }
 
@@ -319,7 +179,7 @@ const ComparePoolsPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
           / <span className="text-[#b7c0d6]">compare</span>
         </span>
         <div className="flex-1" />
-        <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
+        <Link to="/" className="pixel-tab nav">
           ◂ ALL POOLS
         </Link>
         <AccountMenu />
@@ -391,7 +251,7 @@ const ComparePoolsPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
             <div className="text-sm text-[#b7c0d6] mb-3">
               Couldn't compare these pools: {loadError}
             </div>
-            <button className="pixel-btn" onClick={() => setRetryTick((t) => t + 1)}>
+            <button className="pixel-btn" onClick={retry}>
               Retry
             </button>
           </div>
@@ -445,7 +305,7 @@ const ComparePoolsPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
 
                 <div className="pixel-missing-list">
                   {Object.entries(matches).map(([hash, entries]) => (
-                    <SharedSongCard
+                    <HitbloqSongCard
                       key={hash}
                       hash={hash}
                       entries={entries}

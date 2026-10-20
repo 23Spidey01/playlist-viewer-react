@@ -1,23 +1,24 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { BSSongInfo, BSDifficulty } from "./types";
-import { characteristicIcons } from "./types";
+import type { BSSongInfo, BSDifficulty } from "./beatSaverTypes";
+import { characteristicIcons } from "./hitbloqTypes";
 import beatsaverIcon from "../assets/Icons/beatsaver.png";
 import beatleaderIcon from "../assets/Icons/beatleader.svg";
 import "./pixel-ui.css";
 
 interface SongCardProps {
   song: BSSongInfo;
-  starRatings: any;
+  // characteristic -> difficulty -> star rating, for this song's hash.
+  starRatings: Record<string, Record<string, number>>;
   poolId: string;
-  selectedDiffs: any;
-  onToggleDiff: (characteristic: string, difficulty: string) => any;
+  // characteristic -> selected difficulties, for this song only.
+  selectedDiffs: Record<string, string[]>;
+  onToggleDiff: (characteristic: string, difficulty: string) => void;
   onToggleAllDiffs?: (
     select: boolean,
     diffs: { characteristic: string; difficulty: string }[],
   ) => void;
   editMode: boolean;
-  isNew?: boolean;
   // Position in the currently rendered list, used to stagger the
   // edit-mode wiggle so cards pop in one after another like a wave
   // instead of every card starting at once.
@@ -58,7 +59,7 @@ const SongCard: React.FC<SongCardProps> = ({
   // Any diff of this song selected at all — highlights + stays popped
   // out for as long as that's true, not just momentarily.
   const hasSelection = Object.values(selectedDiffs ?? {}).some(
-    (diffs: any) => Array.isArray(diffs) && diffs.length > 0,
+    (diffs) => diffs.length > 0,
   );
 
   const handleCardActivate = () => {
@@ -164,7 +165,7 @@ const SongCard: React.FC<SongCardProps> = ({
         if (e.key === "Enter") handleCardActivate();
       }}
     >
-      {/* Kopf: Cover + Metadaten */}
+      {/* Header: cover + metadata */}
       <div className="flex gap-3.5 px-3.5 pt-3.5 pb-3">
         <img
           src={coverUrl}
@@ -184,7 +185,7 @@ const SongCard: React.FC<SongCardProps> = ({
         </div>
       </div>
 
-      {/* Difficulties, gruppiert nach Characteristic */}
+      {/* Difficulties, grouped by characteristic */}
       <div className="pixel-diff-block">
         {Object.entries(grouped).map(([characteristic, diffs]) => (
           <div key={characteristic} className="flex items-center gap-2.5">
@@ -205,7 +206,7 @@ const SongCard: React.FC<SongCardProps> = ({
                 const star =
                   starRatings?.[characteristic]?.[diff.difficulty] ?? undefined;
                 const selected = isDiffSelected(characteristic, diff.difficulty);
-                // gerankt -> gold (.starred); ungerankt -> Difficulty-Farbe
+                // ranked -> gold (.starred); unranked -> difficulty color
                 const cls =
                   star !== undefined
                     ? "pixel-badge starred"

@@ -1,7 +1,7 @@
 // AuthContext.tsx — app-wide login state. Mount <AuthProvider> once
-// near the app root (SongPoolProvider is the existing sibling for
-// this pattern); everywhere else, call useAuth() (see useAuth.ts).
-import React, { useCallback, useEffect, useState } from "react";
+// near the app root; everywhere else, call useAuth() (see useAuth.ts).
+import React, { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentUser,
   login as apiLogin,
@@ -12,30 +12,31 @@ import {
 import { AuthContext } from "./useAuth";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: user = null, isLoading: loading } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: getCurrentUser,
+  });
 
-  useEffect(() => {
-    getCurrentUser().then((u) => {
-      setUser(u);
-      setLoading(false);
-    });
-  }, []);
+  const login = useCallback(
+    async (username: string, password: string) => {
+      const result = await apiLogin(username, password);
+      if (result.ok) {
+        queryClient.setQueryData<CurrentUser | null>(["currentUser"], await getCurrentUser());
+      }
+      return result;
+    },
+    [queryClient],
+  );
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await apiLogin(email, password);
-    if (result.ok) setUser(await getCurrentUser());
-    return result;
-  }, []);
-
-  const register = useCallback(async (email: string, password: string) => {
-    return apiRegister(email, password);
+  const register = useCallback(async (username: string, password: string) => {
+    return apiRegister(username, password);
   }, []);
 
   const logout = useCallback(async () => {
     await apiLogout();
-    setUser(null);
-  }, []);
+    queryClient.setQueryData<CurrentUser | null>(["currentUser"], null);
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout }}>

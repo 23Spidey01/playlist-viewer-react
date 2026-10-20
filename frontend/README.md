@@ -1,69 +1,40 @@
-# React + TypeScript + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The React/Vite frontend for the Hitbloq pool manager (see the [root README](../README.md) for the full project overview and how to run the whole stack).
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 19** + **TypeScript**, built with **Vite**
+- **TanStack Query** for all server-state fetching/caching (no hand-rolled fetch/loading/retry logic)
+- **React Router** for client-side routing
+- **Tailwind CSS**, layered with a custom pixel-art design system (`src/components/pixel-ui.css`)
+- **Vitest** + **React Testing Library** for unit/component tests
 
-## Expanding the ESLint configuration
+## Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+This starts the Vite dev server on [localhost:5173](http://localhost:5173), proxying `/api` and `/proxy` requests to the Spring Boot backend on `localhost:3001` (see `vite.config.ts`). The backend must already be running — see the root README's "Backend dev" section.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite dev server with HMR |
+| `npm run build` | Type-check, then build for production into `../backend/src/main/resources/static` |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run the Vitest suite once |
+| `npm run test:watch` | Run Vitest in watch mode |
+| `npm run preview` | Preview a production build locally |
+
+## Structure
+
+Almost everything lives in `src/components/` (pages, UI components, and the custom hooks that own each page's data-fetching/mutations), rather than a deep folder-per-feature layout. A few naming conventions worth knowing:
+
+- `use*.ts` — a custom hook, usually owning one page's or feature's server state (e.g. `usePoolSongs.ts`, `useBeatSaverSearch.ts`)
+- `*Api.ts` — thin fetch wrappers for one backend/external API (`hitbloqApi.ts`, `beatsaverApi.ts`, `authApi.ts`)
+- `*Types.ts` — plain type declarations for one API's data shape (`beatSaverTypes.ts`, `hitbloqTypes.ts`)
+- `*.test.ts(x)` — colocated with the file it tests

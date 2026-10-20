@@ -1,11 +1,11 @@
 import React from "react";
-import { characteristicIcons, characteristicLabels } from "./types";
+import { characteristicIcons, characteristicLabels } from "./hitbloqTypes";
 
 // Small icon-first stand-in for a characteristic's plain-text name
 // (Standard, Lawless, ...) — used wherever a characteristic is shown
 // as its own compact label (not inline with other prose). Falls back
 // to the plain name for the rare characteristic with no icon mapped
-// (see types.ts's characteristicIcons) instead of rendering nothing.
+// (see hitbloqTypes.ts's characteristicIcons) instead of rendering nothing.
 const CharacteristicLabel: React.FC<{
   characteristic: string;
   className?: string;

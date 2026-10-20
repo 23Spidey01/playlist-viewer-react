@@ -1,13 +1,16 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import SongCard from "./SongCard";
-import type { BSSongInfo, DetailedSong } from "./types";
-import { diffMap, charMap } from "./types";
-import CharacteristicLabel from "./CharacteristicLabel";
-import { useSongPoolCache } from "./useSongPoolCache";
-import { renderFunnyHahaPaulsSongs } from "./PoolFeatures/FunnyHahaPauls";
+import type { BSSongInfo } from "./beatSaverTypes";
+import HitbloqSongCard from "./HitbloqSongCard";
+import DuplicateSongCard from "./DuplicateSongCard";
+import SelectedSongChip from "./SelectedSongChip";
+import FunnyHahaPaulsSongs from "./PoolFeatures/FunnyHahaPauls";
 import PoolHeader from "./PoolHeader";
-import type { PoolDetailed, LeaderEntry } from "./PoolHeader";
-import { askApiKey, alertDialog, confirmDialog, promptText } from "./dialogStore";
+import type { PoolDetailed } from "./hitbloqTypes";
+import { usePoolSongs } from "./usePoolSongs";
+import { useDiffSelection } from "./useDiffSelection";
+import { useLeaderboard } from "./useLeaderboard";
 
 interface SongListProps {
   poolId: string;
@@ -19,23 +22,6 @@ interface SongListProps {
   onToggleEditMode: () => void;
 }
 
-// Guards against BeatSaver's hash lookup occasionally handing back
-// something that isn't a real MapDetail at all — not just the
-// single-vs-multi-hash shape difference above, but any other
-// unexpected body (an error payload, a partial object, etc.). Every
-// render path assumes song.metadata.songName exists unconditionally,
-// so letting anything else through crashes the whole page.
-function isMapDetail(value: unknown): value is BSSongInfo {
-  if (!value || typeof value !== "object") return false;
-  const obj = value as Record<string, unknown>;
-  return (
-    typeof obj.id === "string" &&
-    typeof obj.metadata === "object" &&
-    obj.metadata !== null &&
-    typeof (obj.metadata as Record<string, unknown>).songName === "string"
-  );
-}
-
 type SongSortKey = "stars" | "name" | "newest" | "diffs";
 
 const SONG_SORTS: { key: SongSortKey; label: string }[] = [
@@ -45,314 +31,42 @@ const SONG_SORTS: { key: SongSortKey; label: string }[] = [
   { key: "diffs", label: "MOST DIFFS" },
 ];
 
-// One missing song's section in the "not found" panel — grouped by
-// hash (not per-diff, see .pixel-missing-song in pixel-ui.css). The
-// map itself isn't on BeatSaver so there's no cover/name to fetch
-// there, but Hitbloq's own ranked-list data still carries a name/
-// cover/star-rating per difficulty from when it was ranked — used
-// here instead of showing nothing but the bare hash.
-const MissingSongCard: React.FC<{
-  hash: string;
-  entries: DetailedSong[];
-  selected: Set<string>;
-  onToggleDiff: (songId: string) => void;
-}> = ({ hash, entries, selected, onToggleDiff }) => {
-  // Own state (not lifted) so one broken cover across a long "not
-  // found" list only ever affects its own row.
-  const [coverBroken, setCoverBroken] = useState(false);
-  const songName = entries.find((s) => s.song_name)?.song_name;
-  const songCover = entries.find((s) => s.song_cover)?.song_cover;
-
-  // Same idea as SongCard's own diff grouping — several missing diffs
-  // across a couple of characteristics read as one section instead of
-  // that many indistinguishable rows.
-  const byCharacteristic: Record<string, DetailedSong[]> = {};
-  entries.forEach((song) => {
-    const charShort = song.song_id.split("_")[2];
-    const characteristic = charMap[charShort] || charShort;
-    (byCharacteristic[characteristic] ??= []).push(song);
-  });
-
-  return (
-    <div className="pixel-missing-song">
-      <div className="pixel-missing-song-head">
-        {songCover && !coverBroken ? (
-          <img
-            src={songCover}
-            alt=""
-            className="pixel-missing-song-cover"
-            onError={() => setCoverBroken(true)}
-          />
-        ) : (
-          <div className="pixel-missing-song-cover pixel-thumb" />
-        )}
-        <div className="flex-1 min-w-0">
-          {songName ? (
-            <>
-              <div className="name" title={songName}>
-                {songName}
-              </div>
-              <div className="hash" title={hash}>
-                {hash}
-              </div>
-            </>
-          ) : (
-            // No name on record either — the hash stands in as the
-            // headline instead of a secondary line under nothing.
-            <div className="hash as-name" title={hash}>
-              {hash}
-            </div>
-          )}
-        </div>
-        <span className="count">
-          {entries.length} diff{entries.length === 1 ? "" : "s"}
-        </span>
-      </div>
-      <div className="pixel-missing-song-diffs">
-        {Object.entries(byCharacteristic).map(([characteristic, songsForChar]) => (
-          <div key={characteristic} className="char-row">
-            <CharacteristicLabel characteristic={characteristic} />
-            {songsForChar.map((song) => {
-              const diffShort = song.song_id.split("_")[1];
-              const difficulty = diffMap[diffShort] || diffShort;
-              const starred = typeof song.song_stars === "number";
-              const isSelected = selected.has(song.song_id);
-              return (
-                <span
-                  key={song.song_id}
-                  className={`${
-                    starred ? "pixel-badge starred" : `pixel-badge diff-${difficulty}`
-                  } pixel-badge-selectable${isSelected ? " selected" : ""}`}
-                  onClick={() => onToggleDiff(song.song_id)}
-                >
-                  {difficulty}
-                  {starred && <b className="ml-1">★ {song.song_stars}</b>}
-                </span>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// One song's section in the "duplicate rankings" panel — a song this
-// pool has ranked under more than one real hash at once (its current
-// version, plus at least one older re-upload hash still separately
-// ranked). Unlike MissingSongCard, the song itself IS on BeatSaver, so
-// its cover/name come straight from that live data instead of
-// Hitbloq's own (possibly stale) copy — only the older hash(es)'
-// difficulties are listed below, grouped by which hash they're each
-// still tracked under, since that's specifically what's worth
-// unranking (the current hash's own ranking should stay).
-const DuplicateSongCard: React.FC<{
-  song: BSSongInfo;
-  entries: DetailedSong[];
-  selected: Set<string>;
-  onToggleDiff: (songId: string) => void;
-}> = ({ song, entries, selected, onToggleDiff }) => {
-  const [coverBroken, setCoverBroken] = useState(false);
-  const cover = song.versions?.[0]?.coverURL;
-  const currentHash = song.versions?.[0]?.hash?.toUpperCase();
-
-  const byHash: Record<string, DetailedSong[]> = {};
-  entries.forEach((entry) => {
-    const hash = entry.song_id.split("_")[0].toUpperCase();
-    (byHash[hash] ??= []).push(entry);
-  });
-
-  return (
-    <div className="pixel-missing-song">
-      <div className="pixel-missing-song-head">
-        {cover && !coverBroken ? (
-          <img
-            src={cover}
-            alt=""
-            className="pixel-missing-song-cover"
-            onError={() => setCoverBroken(true)}
-          />
-        ) : (
-          <div className="pixel-missing-song-cover pixel-thumb" />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="name" title={song.metadata.songName}>
-            {song.metadata.songName}
-          </div>
-          <div className="hash" title={currentHash}>
-            current version: {currentHash}
-          </div>
-        </div>
-        <span className="count">
-          {entries.length} diff{entries.length === 1 ? "" : "s"}
-        </span>
-      </div>
-      <div className="pixel-missing-song-diffs">
-        {Object.entries(byHash).map(([hash, hashEntries]) => {
-          const byCharacteristic: Record<string, DetailedSong[]> = {};
-          hashEntries.forEach((entry) => {
-            const charShort = entry.song_id.split("_")[2];
-            const characteristic = charMap[charShort] || charShort;
-            (byCharacteristic[characteristic] ??= []).push(entry);
-          });
-          return (
-            <div key={hash} className="flex flex-col gap-1.5">
-              <span className="text-[9px] font-mono text-[#6a7690]">
-                OLDER VERSION: {hash}
-              </span>
-              {Object.entries(byCharacteristic).map(([characteristic, charEntries]) => (
-                <div key={characteristic} className="char-row">
-                  <CharacteristicLabel characteristic={characteristic} />
-                  {charEntries.map((entry) => {
-                    const diffShort = entry.song_id.split("_")[1];
-                    const difficulty = diffMap[diffShort] || diffShort;
-                    const starred = typeof entry.song_stars === "number";
-                    const isSelected = selected.has(entry.song_id);
-                    return (
-                      <span
-                        key={entry.song_id}
-                        className={`${
-                          starred ? "pixel-badge starred" : `pixel-badge diff-${difficulty}`
-                        } pixel-badge-selectable${isSelected ? " selected" : ""}`}
-                        onClick={() => onToggleDiff(entry.song_id)}
-                      >
-                        {difficulty}
-                        {starred && <b className="ml-1">★ {entry.song_stars}</b>}
-                      </span>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// One song's row in the "selected maps" tray (edit-mode action bar) —
-// a song picked anywhere in the (possibly hundreds-long) grid below
-// shows up here too, so the full selection is visible in one place
-// instead of only as a highlight buried wherever that card happens to
-// be scrolled to. Reuses the same cover/name/diff-badge look as
-// MissingSongCard/DuplicateSongCard above for visual consistency, just
-// without their own larger "count" chip — the diff badges themselves
-// double as the remove control.
-const SelectedSongChip: React.FC<{
-  hash: string;
-  song?: BSSongInfo;
-  selectedByChar: { [characteristic: string]: string[] };
-  starsByChar?: { [characteristic: string]: { [difficulty: string]: number } };
-  onToggleDiff: (characteristic: string, difficulty: string) => void;
-  onRemoveSong: () => void;
-}> = ({ hash, song, selectedByChar, starsByChar, onToggleDiff, onRemoveSong }) => {
-  const [coverBroken, setCoverBroken] = useState(false);
-  const cover = song?.versions?.[0]?.coverURL;
-  const name = song?.metadata.songName;
-
-  return (
-    <div className="pixel-missing-song">
-      <div className="pixel-missing-song-head">
-        {cover && !coverBroken ? (
-          <img
-            src={cover}
-            alt=""
-            className="pixel-missing-song-cover"
-            onError={() => setCoverBroken(true)}
-          />
-        ) : (
-          <div className="pixel-missing-song-cover pixel-thumb" />
-        )}
-        <div className="flex-1 min-w-0">
-          {name ? (
-            <div className="name" title={name}>
-              {name}
-            </div>
-          ) : (
-            <div className="hash as-name" title={hash}>
-              {hash}
-            </div>
-          )}
-        </div>
-        <button
-          className="pixel-stat-link"
-          onClick={onRemoveSong}
-          title="Deselect this song"
-        >
-          remove
-        </button>
-      </div>
-      <div className="pixel-missing-song-diffs">
-        {Object.entries(selectedByChar).map(([characteristic, diffs]) => (
-          <div key={characteristic} className="char-row">
-            <CharacteristicLabel characteristic={characteristic} />
-            {diffs.map((difficulty) => {
-              const stars = starsByChar?.[characteristic]?.[difficulty];
-              const starred = typeof stars === "number";
-              return (
-                <span
-                  key={difficulty}
-                  className={`${
-                    starred ? "pixel-badge starred" : `pixel-badge diff-${difficulty}`
-                  } pixel-badge-selectable selected`}
-                  onClick={() => onToggleDiff(characteristic, difficulty)}
-                >
-                  {difficulty}
-                  {starred && <b className="ml-1">★ {stars}</b>}
-                </span>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 const SongList: React.FC<SongListProps> = ({
   poolId,
   pool,
   editMode,
   onToggleEditMode,
 }) => {
-  // State for all songs from Hitbloq (ranked_list_detailed)
-  const [songs, setSongs] = useState<DetailedSong[]>([]);
-  // State for all songs found from BeatSaver — one entry per resolved
-  // hash, NOT deduped by map id: a mapper re-upload can leave both the
-  // old and new hash ranked in the same pool, and since BeatSaver's
-  // hash lookup always resolves to the map's current version data
-  // regardless of which hash you queried with, both entries look
-  // identical (same versions[0].hash, same cover, same everything) —
-  // isDuplicateSong below flags that case, and queryHashByEntry is
-  // what actually tells the two ranked hashes apart despite that.
-  const [bsSongs, setBsSongs] = useState<BSSongInfo[]>([]);
-  // Which hash was actually queried to resolve each bsSongs entry —
-  // see fetchBeatSaverSongs for why this (not the entry's own
-  // versions[0].hash) is what's needed to tell a re-upload's two
-  // ranked hashes apart. Keyed by object reference since each fetched
-  // entry is distinct even when its content matches another's.
-  const [queryHashByEntry, setQueryHashByEntry] = useState<Map<BSSongInfo, string>>(new Map());
-  // Loading indicator
-  const [loading, setLoading] = useState(false);
-  // What the loading indicator is currently doing, and its progress
-  // (null while the total isn't known yet, e.g. paging through Hitbloq)
-  const [loadStage, setLoadStage] = useState("");
-  const [loadProgress, setLoadProgress] = useState<{
-    current: number;
-    total: number;
-  } | null>(null);
-  // Set when a pool load fails outright (e.g. Hitbloq 500s mid-page) so
-  // the loading indicator doesn't just sit there forever with nothing
-  // to show for it — see the fetchAllSongs try/catch below.
-  const [loadError, setLoadError] = useState<string | null>(null);
-  // Bumped by the "Retry" button to re-trigger the load effect below
-  // without needing poolId itself to change.
-  const [retryTick, setRetryTick] = useState(0);
-  // Map for star ratings: hash -> characteristic -> difficulty -> stars
-  const [starRatingMap, setStarRatingMap] = useState<
-    Record<string, Record<string, Record<string, number>>>
-  >({});
+  const navigate = useNavigate();
+  const {
+    songs,
+    bsSongs,
+    queryHashByEntry,
+    starRatingMap,
+    loading,
+    loadStage,
+    loadProgress,
+    loadError,
+    retry,
+    handleRecalculateCR,
+    unrankEntries,
+    rankAllSelected,
+    unrankAllSelected,
+    setStarRatingForSelection,
+  } = usePoolSongs(poolId);
+
+  const {
+    selectedDiffs,
+    toggleDiffSelection,
+    setSongSelection,
+    clearSelection,
+    selectedCount,
+    allSelectedAreRanked,
+    allSelectedAreUnranked,
+  } = useDiffSelection(editMode, starRatingMap);
+
+  const leaders = useLeaderboard(poolId);
+
   // Indicates whether the list of missing songs is displayed
   const [showMissing, setShowMissing] = useState(false);
   // Which missing difficulties (by their Hitbloq song_id, unique per
@@ -379,334 +93,10 @@ const SongList: React.FC<SongListProps> = ({
       return next;
     });
   };
-  const { cache, setCache } = useSongPoolCache();
-
-  // State for selected difficulties
-  const [selectedDiffs, setSelectedDiffs] = useState<{
-    [hash: string]: { [characteristic: string]: string[] };
-  }>({});
 
   // State for the song search + sort controls
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SongSortKey>("stars");
-
-  // editMode itself lives in the parent now (see SongListProps above);
-  // this just reacts to it turning off by clearing any selection —
-  // same behavior the old local toggle used to do inline.
-  useEffect(() => {
-    if (!editMode) setSelectedDiffs({});
-  }, [editMode]);
-
-  // Leaderboard data for the pool header
-  const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
-
-  useEffect(() => {
-    const fetchLeaders = async () => {
-      try {
-        const res = await fetch(
-          `http://localhost:3001/proxy/ladder/${poolId}/players/0`,
-        );
-        const data = await res.json();
-        setLeaders(
-          data.ladder.slice(0, 5).map((p: any) => ({
-            rank: p.rank,
-            name: p.username ?? p.name,
-            cr: p.cr ?? 0,
-          })),
-        );
-      } catch {
-        setLeaders([]);
-      }
-    };
-
-    fetchLeaders();
-  }, [poolId]);
-
-  // Posts to one of the Hitbloq proxy endpoints and actually checks
-  // whether it worked. The backend proxy forwards Hitbloq's response
-  // body as-is with its own 200 OK regardless of whether Hitbloq
-  // itself accepted the request — a wrong API key, for instance, still
-  // comes back as an HTTP-level success with a JSON body like
-  // { status: "error", error: "..." }. So res.ok alone can't tell
-  // success from failure here; only the body's own status field can.
-  // Callers building an error message should fall back through
-  // result?.error || result?.status (not straight to a hardcoded
-  // string) — Hitbloq doesn't always send a separate `error` message,
-  // and status alone (e.g. "invalid key") is often the only text
-  // describing what actually went wrong.
-  const postToPool = async (path: string, body: unknown) => {
-    const res = await fetch(`http://localhost:3001/proxy/${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    let result: { status?: string; error?: string } | null = null;
-    try {
-      result = await res.json();
-    } catch {
-      // Non-JSON body (e.g. a raw-text 500) — ok below still resolves
-      // to false via res.ok.
-    }
-    return { ok: res.ok && result?.status === "success", result };
-  };
-
-  const handleRecalculateCR = async () => {
-    const key = await askApiKey(poolId);
-    if (!key) return alertDialog("No API key entered.");
-    setLoading(true);
-    setLoadStage("Recalculating CR...");
-    setLoadProgress(null);
-    const { ok, result } = await postToPool("recalculate_cr", { key, pool: poolId });
-    setLoading(false);
-    await alertDialog(
-      ok ? "CR recalculated!" : "Error: " + (result?.error || result?.status || "unknown error"),
-    );
-  };
-
-  // Read via a ref (always up to date) instead of depending on `cache`
-  // directly below — a pool with genuinely zero ranked songs used to
-  // fail the old `cache[poolId]?.songs?.length` check forever (0 is
-  // falsy), and with `cache` itself in the deps array, every fetch's
-  // own setCache() call made the effect re-fire and fetch again —
-  // an infinite loop that hammered Hitbloq until it started 500ing,
-  // which then left the "Loading ranked songs..." spinner stuck
-  // permanently since nothing caught the resulting fetch/JSON error.
-  const cacheRef = useRef(cache);
-  cacheRef.current = cache;
-
-  // Load all songs from the selected pool (Hitbloq API)
-  useEffect(() => {
-    if (!poolId) return;
-    // Check if this pool was already loaded (even if it turned out to
-    // have zero ranked songs — presence in the cache is what matters).
-    const cached = cacheRef.current[poolId];
-    if (cached) {
-      setSongs(cached.songs);
-      setBsSongs(cached.bsSongs);
-      setQueryHashByEntry(cached.queryHashByEntry || new Map());
-      setStarRatingMap(cached.starRatingMap);
-      setLoading(false);
-      setLoadError(null);
-      return;
-    }
-    setLoading(true);
-    setLoadError(null);
-    setLoadStage("Loading ranked songs from Hitbloq...");
-    setLoadProgress(null);
-
-    const fetchAllSongs = async () => {
-      try {
-        // Hitbloq paginates ranked_list_detailed at 30 entries/page with
-        // no way to know the total up front, so pages used to be
-        // fetched one at a time — each a ~0.7-1s round trip to
-        // hitbloq.com, which adds up to minutes for a big pool like
-        // crv2 (~97 pages). Fetch PAGE_CONCURRENCY pages at once
-        // instead: a page short of 30 entries (including empty) marks
-        // the end, so within a batch we keep everything up to and
-        // including the first short page, then stop — any pages after
-        // it in the same batch were spare/wasted requests, not data
-        // loss, since a short page can't be followed by a full one.
-        const PAGE_CONCURRENCY = 6;
-        const PAGE_SIZE = 30;
-        let allSongs: DetailedSong[] = [];
-        let nextPage = 0;
-        let reachedEnd = false;
-        while (!reachedEnd) {
-          const batch = Array.from(
-            { length: PAGE_CONCURRENCY },
-            (_, i) => nextPage + i,
-          );
-          setLoadStage(
-            `Loading ranked songs from Hitbloq (page ${batch[0] + 1}-${batch[batch.length - 1] + 1})...`,
-          );
-          const batchResults = await Promise.all(
-            batch.map(async (page) => {
-              const res = await fetch(
-                `http://localhost:3001/proxy/ranked_list_detailed/${poolId}/${page}`,
-              );
-              if (!res.ok) {
-                throw new Error(`Hitbloq returned ${res.status} on page ${page + 1}`);
-              }
-              const data = await res.json();
-              return Array.isArray(data) ? (data as DetailedSong[]) : [];
-            }),
-          );
-          for (const pageData of batchResults) {
-            allSongs = allSongs.concat(pageData);
-            if (pageData.length < PAGE_SIZE) {
-              reachedEnd = true;
-              break;
-            }
-          }
-          nextPage += PAGE_CONCURRENCY;
-        }
-        setSongs(allSongs);
-
-        // Load BeatSaver songs and write everything to cache!
-        const hashes = Array.from(
-          new Set(
-            allSongs.map((song) => song.song_id.split("_")[0].toLowerCase()),
-          ),
-        );
-        setLoadStage("Fetching song data from BeatSaver...");
-        setLoadProgress({ current: 0, total: hashes.length });
-        const { songs: loadedBsSongs, queryHashByEntry: loadedQueryHashByEntry } =
-          await fetchBeatSaverSongs(hashes);
-
-        setBsSongs(loadedBsSongs);
-        setQueryHashByEntry(loadedQueryHashByEntry);
-        setLoading(false);
-        setStarRatingMap(buildStarRatingMap(allSongs));
-        setCache((old) => ({
-          ...old,
-          [poolId]: {
-            songs: allSongs,
-            bsSongs: loadedBsSongs,
-            queryHashByEntry: loadedQueryHashByEntry,
-            starRatingMap: buildStarRatingMap(allSongs),
-          },
-        }));
-      } catch (err) {
-        setLoading(false);
-        setLoadError(
-          err instanceof Error ? err.message : "Failed to load this pool.",
-        );
-      }
-    };
-
-    fetchAllSongs();
-  }, [poolId, setCache, retryTick]);
-
-  // Fetch BeatSaver info for all hashes (in chunks to avoid rate
-  // limits). Every chunk is retried a few times with backoff before
-  // being given up on — there was no error handling here at all
-  // before: no res.ok check, no retry, so a single rate-limited or
-  // briefly-failing chunk (up to CHUNK_SIZE hashes at once) either
-  // silently dropped its songs as "not found" or threw and aborted
-  // every chunk after it, depending on how BeatSaver's response
-  // failed. That's what was actually behind the "Not Found"/duplicate
-  // counts changing on every reload — it wasn't the data that was
-  // random, it was how much of it a given page load managed to fetch.
-  // Returns the resolved songs AND, separately, which hash was actually
-  // QUERIED to get each one — not the same thing! When a map has been
-  // re-uploaded, BeatSaver's hash lookup resolves the OLD hash to the
-  // same MapDetail as the NEW one, and that object's own
-  // versions[0].hash always reports the current/live version — so two
-  // results fetched via two genuinely different ranked hashes (old +
-  // new) can come back reporting the identical versions[0].hash,
-  // making them look like one plain duplicate rather than two distinct
-  // ranked entries. queryHashByEntry (keyed by object reference — each
-  // fetched entry is its own distinct object even when content is
-  // identical) is what actually distinguishes them, used below for the
-  // "duplicate rankings" panel.
-  const fetchBeatSaverSongs = async (
-    hashes: string[],
-  ): Promise<{ songs: BSSongInfo[]; queryHashByEntry: Map<BSSongInfo, string> }> => {
-    const CHUNK_SIZE = 50;
-    const CONCURRENCY = 5;
-    const MAX_ATTEMPTS = 4;
-    const results: BSSongInfo[] = [];
-    const queryHashByEntry = new Map<BSSongInfo, string>();
-    const failedChunks: string[][] = [];
-
-    const chunks: string[][] = [];
-    for (let i = 0; i < hashes.length; i += CHUNK_SIZE) {
-      chunks.push(hashes.slice(i, i + CHUNK_SIZE));
-    }
-    let completed = 0;
-    let nextChunk = 0;
-
-    // A handful of these workers run at once (instead of one chunk at
-    // a time with a fixed delay between each) so a pool with thousands
-    // of hashes doesn't spend a minute serially waiting on BeatSaver
-    // round trips it could've overlapped.
-    const worker = async () => {
-      while (true) {
-        const chunkIndex = nextChunk++;
-        if (chunkIndex >= chunks.length) return;
-        const chunk = chunks[chunkIndex];
-        const url = `https://api.beatsaver.com/maps/hash/${chunk.join(",")}`;
-        let data: Record<string, unknown> | null = null;
-        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-          try {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`BeatSaver hash lookup failed: ${res.status}`);
-            data = await res.json();
-            break;
-          } catch {
-            if (attempt < MAX_ATTEMPTS - 1) {
-              await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
-            }
-          }
-        }
-        if (data) {
-          // BeatSaver's bulk hash lookup returns a {hash: MapDetail}
-          // dictionary for 2+ hashes, but a BARE MapDetail (no hash
-          // wrapper at all) when the chunk happens to contain exactly
-          // one — which the final, smaller chunk of a hash list often
-          // does. Treating that shape as a dictionary (the branch
-          // below) iterates the map's own top-level fields as if each
-          // were its own result, pushing garbage entries that crash
-          // every .metadata.songName access on render — this is what
-          // was behind the pool page going blank after a reload.
-          if (chunk.length === 1 && isMapDetail(data)) {
-            const song = data as unknown as BSSongInfo;
-            results.push(song);
-            queryHashByEntry.set(song, chunk[0].toUpperCase());
-          } else {
-            Object.entries(data).forEach(([queryHash, info]) => {
-              if (!isMapDetail(info)) return;
-              const song = info as unknown as BSSongInfo;
-              results.push(song);
-              queryHashByEntry.set(song, queryHash.toUpperCase());
-            });
-          }
-        } else {
-          // Every retry failed — these hashes go missing from this run
-          // rather than silently taking the rest of the pool down with
-          // them; reported once at the end instead of per-chunk.
-          failedChunks.push(chunk);
-        }
-        completed += chunk.length;
-        setLoadProgress({
-          current: Math.min(completed, hashes.length),
-          total: hashes.length,
-        });
-      }
-    };
-    await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, worker),
-    );
-
-    if (failedChunks.length > 0) {
-      const failedCount = failedChunks.reduce((sum, c) => sum + c.length, 0);
-      console.warn(
-        `BeatSaver hash lookup failed for ${failedCount} hash(es) after ${MAX_ATTEMPTS} attempts each — ` +
-          `they'll show as "not found" for this page load. Reloading may pick them up if it was transient.`,
-      );
-    }
-    return { songs: results, queryHashByEntry };
-  };
-
-  // Build a map: hash -> characteristic -> difficulty -> starRating
-  const buildStarRatingMap = (songs: DetailedSong[]) => {
-    const map: Record<string, Record<string, Record<string, number>>> = {};
-    songs.forEach((song) => {
-      const parts = song.song_id.split("_");
-      const hash = parts[0].toUpperCase();
-      const diffShort = parts[1];
-      const charShort = parts[2];
-      const difficulty = diffMap[diffShort] || diffShort;
-      const characteristic = charMap[charShort] || charShort;
-
-      if (!map[hash]) map[hash] = {};
-      if (!map[hash][characteristic]) map[hash][characteristic] = {};
-      if (typeof song.song_stars === "number") {
-        map[hash][characteristic][difficulty] = song.song_stars;
-      }
-    });
-    return map;
-  };
 
   // Hashes from Hitbloq songs (uppercase)
   const hitbloqHashes = songs.map((song) =>
@@ -770,7 +160,7 @@ const SongList: React.FC<SongListProps> = ({
   // BeatSaver's lookup just returned the exact same hash's data twice,
   // there's only ever been one real ranked entry despite the repeated
   // result, and nothing here is safe to touch.
-  const duplicateEntriesBySongId: Record<string, DetailedSong[]> = {};
+  const duplicateEntriesBySongId: Record<string, typeof songs> = {};
   Object.entries(duplicateGroups).forEach(([id, group]) => {
     const distinctHashes = Array.from(
       new Set(
@@ -788,7 +178,7 @@ const SongList: React.FC<SongListProps> = ({
   const duplicateHashSongs = Object.keys(duplicateEntriesBySongId).map(
     (id) => duplicateGroups[id][0],
   );
-  const duplicateEntries: DetailedSong[] = Object.values(duplicateEntriesBySongId).flat();
+  const duplicateEntries = Object.values(duplicateEntriesBySongId).flat();
   const selectedDuplicateEntries = duplicateEntries.filter((e) =>
     selectedDuplicateIds.has(e.song_id),
   );
@@ -802,64 +192,6 @@ const SongList: React.FC<SongListProps> = ({
   const selectedMissingEntries = allMissingEntries.filter((song) =>
     selectedMissingIds.has(song.song_id),
   );
-
-  // Sends a batch of difficulties to Hitbloq as unranked — shared by
-  // the "not found" panel's Unrank All/Selected and the "duplicate
-  // rankings" panel's below, which differ only in which entries and
-  // wording they pass in.
-  const unrankEntries = async (
-    entries: DetailedSong[],
-    scope: "all" | "selected",
-    noun: string,
-    onDone: () => void,
-  ) => {
-    if (entries.length === 0) return;
-    const key = await askApiKey(poolId);
-    if (!key) return alertDialog("No API key entered.");
-    const proceed = await confirmDialog(
-      scope === "all"
-        ? `Are you sure you want to send all ${noun} as unranked?`
-        : `Are you sure you want to send ${entries.length} selected difficult${
-            entries.length === 1 ? "y" : "ies"
-          } as unranked?`,
-      { okLabel: "Unrank", cancelLabel: "Cancel", danger: true },
-    );
-    if (!proceed) return;
-
-    setLoading(true);
-    setLoadStage("Unranking...");
-    setLoadProgress({ current: 0, total: entries.length });
-    let count = 0;
-    let processed = 0;
-    const errors: string[] = [];
-    for (const song of entries) {
-      const parts = song.song_id.split("_");
-      const hash = parts[0];
-      const diffShort = parts[1];
-      const charShort = parts[2];
-      const difficulty = diffMap[diffShort] || diffShort;
-      const characteristic = charMap[charShort] || charShort;
-      const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-      const { ok, result } = await postToPool("unrank", { key, pool: poolId, song: formattedId });
-      if (ok) count++;
-      else errors.push(`${formattedId}: ${result?.error || result?.status || "failed to unrank"}`);
-      processed++;
-      setLoadProgress({ current: processed, total: entries.length });
-    }
-    setLoading(false);
-    if (count === 0) {
-      await alertDialog(
-        `Nothing was unranked — check the API key and try again.` +
-          (errors.length ? `\n\n${errors.join("\n")}` : ""),
-      );
-      return;
-    }
-    await alertDialog(
-      `${count} difficult${count === 1 ? "y" : "ies"} sent as unranked!` +
-        (errors.length ? `\n\n${errors.length} problem(s):\n${errors.join("\n")}` : ""),
-    );
-    onDone();
-  };
 
   // Highest star rating among a song's ranked difficulties (-Infinity
   // for a song with none, so unranked songs sort to the bottom).
@@ -902,303 +234,6 @@ const SongList: React.FC<SongListProps> = ({
       }
       return a.metadata.songName.localeCompare(b.metadata.songName);
     });
-
-  // Toggle difficulty selection
-  const toggleDiffSelection = (
-    hash: string,
-    characteristic: string,
-    difficulty: string,
-  ) => {
-    setSelectedDiffs((prev) => {
-      const prevChar = prev[hash]?.[characteristic] || [];
-      const isSelected = prevChar.includes(difficulty);
-
-      if (!isSelected) {
-        return {
-          ...prev,
-          [hash]: {
-            ...prev[hash],
-            [characteristic]: [...prevChar, difficulty],
-          },
-        };
-      }
-
-      // Deselecting — drop the characteristic entirely once it's down
-      // to zero diffs, and the song entirely once it has no
-      // characteristics left, instead of leaving an empty {} behind.
-      // Otherwise the song lingers in selectedDiffs with nothing
-      // actually selected under it — invisible in the grid (every
-      // badge there checks its own diff) but still shown as a ghost
-      // entry in the "selected maps" tray above, which iterates
-      // selectedDiffs directly.
-      const nextChar = prevChar.filter((d) => d !== difficulty);
-      const nextHashEntry = { ...prev[hash] };
-      if (nextChar.length > 0) {
-        nextHashEntry[characteristic] = nextChar;
-      } else {
-        delete nextHashEntry[characteristic];
-      }
-
-      const next = { ...prev };
-      if (Object.keys(nextHashEntry).length > 0) {
-        next[hash] = nextHashEntry;
-      } else {
-        delete next[hash];
-      }
-      return next;
-    });
-  };
-
-  // Select or deselect every difficulty of one song at once
-  const setSongSelection = (
-    hash: string,
-    select: boolean,
-    diffs: { characteristic: string; difficulty: string }[],
-  ) => {
-    setSelectedDiffs((prev) => {
-      const next = { ...prev };
-      if (!select) {
-        delete next[hash];
-        return next;
-      }
-      const charMap: { [characteristic: string]: string[] } = {};
-      diffs.forEach(({ characteristic, difficulty }) => {
-        charMap[characteristic] = [
-          ...(charMap[characteristic] || []),
-          difficulty,
-        ];
-      });
-      next[hash] = charMap;
-      return next;
-    });
-  };
-
-  const allSelectedAreRanked = Object.entries(selectedDiffs).every(
-    ([hash, chars]) =>
-      Object.entries(chars).every(([characteristic, diffs]) =>
-        diffs.every(
-          (difficulty) =>
-            starRatingMap[hash]?.[characteristic]?.[difficulty] !== undefined,
-        ),
-      ),
-  );
-
-  const allSelectedAreUnranked = Object.entries(selectedDiffs).every(
-    ([hash, chars]) =>
-      Object.entries(chars).every(([characteristic, diffs]) =>
-        diffs.every(
-          (difficulty) =>
-            starRatingMap[hash]?.[characteristic]?.[difficulty] === undefined,
-        ),
-      ),
-  );
-
-  // Total number of currently selected difficulties (across all songs)
-  const selectedCount = Object.values(selectedDiffs).reduce(
-    (sum, chars) =>
-      sum + Object.values(chars).reduce((s, arr) => s + arr.length, 0),
-    0,
-  );
-
-  // Rank every selected difficulty that is not ranked yet
-  const rankAllSelected = async () => {
-    if (!allSelectedAreUnranked) return;
-    const key = await askApiKey(poolId);
-    if (!key) return;
-    let count = 0;
-    const errors: string[] = [];
-    for (const hash in selectedDiffs) {
-      for (const characteristic in selectedDiffs[hash]) {
-        for (const difficulty of selectedDiffs[hash][characteristic]) {
-          if (starRatingMap[hash]?.[characteristic]?.[difficulty] !== undefined)
-            continue;
-          const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-          const { ok, result } = await postToPool("rank", {
-            key,
-            pool: poolId,
-            song: formattedId,
-          });
-          if (ok) count++;
-          else errors.push(`${formattedId}: ${result?.error || result?.status || "failed to rank"}`);
-        }
-      }
-    }
-    let crFailed = false;
-    if (count > 0) {
-      const { ok } = await postToPool("recalculate_cr", { key, pool: poolId });
-      crFailed = !ok;
-    }
-    if (count === 0) {
-      await alertDialog(
-        `Nothing was ranked — check the API key and try again.` +
-          (errors.length ? `\n\n${errors.join("\n")}` : ""),
-      );
-      return;
-    }
-    await alertDialog(
-      `${count} Difficult${count === 1 ? "y" : "ies"} ranked` +
-        (crFailed ? " (CR recalculation failed)" : " and CR recalculated") +
-        "!" +
-        (errors.length ? `\n\n${errors.length} problem(s):\n${errors.join("\n")}` : ""),
-    );
-    window.location.reload();
-  };
-
-  // Unrank every selected difficulty (only allowed when all are currently ranked)
-  const unrankAllSelected = async () => {
-    if (!allSelectedAreRanked) return;
-    const key = await askApiKey(poolId);
-    if (!key) return;
-    let count = 0;
-    const errors: string[] = [];
-    for (const hash in selectedDiffs) {
-      for (const characteristic in selectedDiffs[hash]) {
-        for (const difficulty of selectedDiffs[hash][characteristic]) {
-          const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-          const { ok, result } = await postToPool("unrank", {
-            key,
-            pool: poolId,
-            song: formattedId,
-          });
-          if (ok) count++;
-          else errors.push(`${formattedId}: ${result?.error || result?.status || "failed to unrank"}`);
-        }
-      }
-    }
-    let crFailed = false;
-    if (count > 0) {
-      const { ok } = await postToPool("recalculate_cr", { key, pool: poolId });
-      crFailed = !ok;
-    }
-    if (count === 0) {
-      await alertDialog(
-        `Nothing was unranked — check the API key and try again.` +
-          (errors.length ? `\n\n${errors.join("\n")}` : ""),
-      );
-      return;
-    }
-    await alertDialog(
-      `${count} Difficult${count === 1 ? "y" : "ies"} unranked` +
-        (crFailed ? " (CR recalculation failed)" : "") +
-        "!" +
-        (errors.length ? `\n\n${errors.length} problem(s):\n${errors.join("\n")}` : ""),
-    );
-    window.location.reload();
-  };
-
-  // Set a star rating for the whole selection; ranks unranked diffs first if needed
-  const setStarRatingForSelection = async () => {
-    const unrankedDiffs: {
-      hash: string;
-      characteristic: string;
-      difficulty: string;
-    }[] = [];
-    for (const hash in selectedDiffs) {
-      for (const characteristic in selectedDiffs[hash]) {
-        for (const difficulty of selectedDiffs[hash][characteristic]) {
-          if (
-            starRatingMap[hash]?.[characteristic]?.[difficulty] === undefined
-          ) {
-            unrankedDiffs.push({ hash, characteristic, difficulty });
-          }
-        }
-      }
-    }
-
-    if (unrankedDiffs.length > 0) {
-      const proceed = await confirmDialog(
-        "Your selection contains difficulties that are not ranked yet. Should these be ranked first and then the star rating be set?",
-        { okLabel: "Rank them first", cancelLabel: "Cancel" },
-      );
-      if (!proceed) return;
-      const rankKey = await askApiKey(poolId);
-      if (!rankKey) return;
-      let rankedFirstCount = 0;
-      const rankFirstErrors: string[] = [];
-      for (const { hash, characteristic, difficulty } of unrankedDiffs) {
-        const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-        const { ok, result } = await postToPool("rank", {
-          key: rankKey,
-          pool: poolId,
-          song: formattedId,
-        });
-        if (ok) rankedFirstCount++;
-        else rankFirstErrors.push(`${formattedId}: ${result?.error || result?.status || "failed to rank"}`);
-      }
-      if (rankedFirstCount > 0) {
-        await postToPool("recalculate_cr", { key: rankKey, pool: poolId });
-      }
-      if (rankedFirstCount === 0) {
-        return alertDialog(
-          `Couldn't rank any of the ${unrankedDiffs.length} unranked difficulties — check the API key and try again.` +
-            (rankFirstErrors.length ? `\n\n${rankFirstErrors.join("\n")}` : ""),
-        );
-      }
-      await alertDialog(
-        `${rankedFirstCount} of ${unrankedDiffs.length} difficulties ranked first! Now the star rating will be set.` +
-          (rankFirstErrors.length
-            ? `\n\n${rankFirstErrors.length} problem(s):\n${rankFirstErrors.join("\n")}`
-            : ""),
-      );
-    }
-
-    const key = await askApiKey(poolId);
-    if (!key) return;
-    const isAutomatic = await confirmDialog(
-      "Calculate star rating automatically, or set it manually?",
-      { okLabel: "Automatic", cancelLabel: "Manual" },
-    );
-    let manualRating: number | undefined = undefined;
-    if (!isAutomatic) {
-      let rating = await promptText(
-        "What star rating should be set for all selected difficulties?",
-        { placeholder: "e.g. 8.5" },
-      );
-      if (!rating) return alertDialog("No star rating entered.");
-      rating = rating.replace(",", ".");
-      manualRating = parseFloat(rating);
-      if (isNaN(manualRating) || manualRating < 0)
-        return alertDialog("Invalid star rating.");
-    }
-    let count = 0;
-    const errors: string[] = [];
-    for (const hash in selectedDiffs) {
-      for (const characteristic in selectedDiffs[hash]) {
-        for (const difficulty of selectedDiffs[hash][characteristic]) {
-          const formattedId = `${hash}|_${difficulty}_Solo${characteristic}`;
-          const { ok, result } = isAutomatic
-            ? await postToPool("set_automatic", { key, pool: poolId, song: formattedId })
-            : await postToPool("set_manual", {
-                key,
-                pool: poolId,
-                song: formattedId,
-                rating: manualRating,
-              });
-          if (ok) count++;
-          else errors.push(`${formattedId}: ${result?.error || result?.status || "failed to set star rating"}`);
-        }
-      }
-    }
-    let crFailed = false;
-    if (count > 0) {
-      const { ok } = await postToPool("recalculate_cr", { key, pool: poolId });
-      crFailed = !ok;
-    }
-    if (count === 0) {
-      await alertDialog(
-        `Nothing was changed — check the API key and try again.` +
-          (errors.length ? `\n\n${errors.join("\n")}` : ""),
-      );
-      return;
-    }
-    await alertDialog(
-      `${count} Difficult${count === 1 ? "y" : "ies"} changed` +
-        (crFailed ? " (CR recalculation failed)" : " and CR recalculated") +
-        "!" +
-        (errors.length ? `\n\n${errors.length} problem(s):\n${errors.join("\n")}` : ""),
-    );
-    window.location.reload();
-  };
 
   return (
     <div>
@@ -1250,7 +285,7 @@ const SongList: React.FC<SongListProps> = ({
           <div className="text-sm text-[#b7c0d6] mb-3">
             Couldn't load this pool: {loadError}
           </div>
-          <button className="pixel-btn" onClick={() => setRetryTick((t) => t + 1)}>
+          <button className="pixel-btn" onClick={retry}>
             Retry
           </button>
         </div>
@@ -1266,9 +301,7 @@ const SongList: React.FC<SongListProps> = ({
           duplicateSongCount={duplicateHashSongs.length}
           showDuplicates={showDuplicates}
           onToggleDuplicates={() => setShowDuplicates((v) => !v)}
-          onRankNewMaps={() =>
-            (window.location.href = `/pool/${poolId}/rank-new`)
-          }
+          onRankNewMaps={() => navigate(`/pool/${poolId}/rank-new`)}
           onRecalculateCR={handleRecalculateCR}
           editMode={editMode}
           onToggleEditMode={onToggleEditMode}
@@ -1294,28 +327,28 @@ const SongList: React.FC<SongListProps> = ({
                 <button
                   className="pixel-btn disabled:opacity-40"
                   disabled={selectedCount === 0 || !allSelectedAreUnranked}
-                  onClick={rankAllSelected}
+                  onClick={() => rankAllSelected(selectedDiffs)}
                 >
                   Rank All Selected
                 </button>
                 <button
                   className="pixel-btn secondary disabled:opacity-40"
                   disabled={selectedCount === 0}
-                  onClick={setStarRatingForSelection}
+                  onClick={() => setStarRatingForSelection(selectedDiffs)}
                 >
                   Set Star Rating
                 </button>
                 <button
                   className="pixel-btn danger disabled:opacity-40"
                   disabled={selectedCount === 0 || !allSelectedAreRanked}
-                  onClick={unrankAllSelected}
+                  onClick={() => unrankAllSelected(selectedDiffs)}
                 >
                   Unrank All Selected
                 </button>
                 <button
                   className="pixel-tab ml-auto disabled:opacity-40"
                   disabled={selectedCount === 0}
-                  onClick={() => setSelectedDiffs({})}
+                  onClick={clearSelection}
                 >
                   CLEAR
                 </button>
@@ -1394,7 +427,7 @@ const SongList: React.FC<SongListProps> = ({
           </div>
           <div className="pixel-missing-list">
             {missingHashes.map((hash) => (
-              <MissingSongCard
+              <HitbloqSongCard
                 key={hash}
                 hash={hash}
                 entries={songs.filter((song) => song.song_id.startsWith(hash))}
@@ -1547,18 +580,17 @@ const SongList: React.FC<SongListProps> = ({
         </div>
       )}
       {/* Display BeatSaver SongCards */}
-      {!loading &&
-        visibleSongs.length > 0 &&
-        poolId === "funny_haha_pauls" &&
-        renderFunnyHahaPaulsSongs(
-          visibleSongs,
-          starRatingMap,
-          poolId,
-          selectedDiffs,
-          toggleDiffSelection,
-          editMode,
-          setSongSelection,
-        )}
+      {!loading && visibleSongs.length > 0 && poolId === "funny_haha_pauls" && (
+        <FunnyHahaPaulsSongs
+          bsSongs={visibleSongs}
+          starRatingMap={starRatingMap}
+          poolId={poolId}
+          selectedDiffs={selectedDiffs}
+          toggleDiffSelection={toggleDiffSelection}
+          editMode={editMode}
+          setSongSelection={setSongSelection}
+        />
+      )}
       {!loading && visibleSongs.length > 0 && poolId !== "funny_haha_pauls" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {visibleSongs.map((song, index) => {

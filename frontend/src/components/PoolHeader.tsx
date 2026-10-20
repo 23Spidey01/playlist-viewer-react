@@ -1,22 +1,6 @@
 import React from "react";
 import CrCurveChart from "./CrCurveChart";
-
-export interface PoolDetailed {
-  id: string;
-  title: string;
-  image: string;
-  short_description: string;
-  author: string;
-  player_count: number;
-  popularity: number;
-  banner_image?: string;
-}
-
-export interface LeaderEntry {
-  rank: number;
-  name: string;
-  cr: number;
-}
+import type { PoolDetailed, LeaderEntry } from "./hitbloqTypes";
 
 interface PoolHeaderProps {
   pool: PoolDetailed;
@@ -88,7 +72,7 @@ const PoolHeader: React.FC<PoolHeaderProps> = ({
       editMode ? " pixel-edit-dim-bg" : ""
     }`}
   >
-    {/* Cover: fixes Quadrat, damit nichts verzerrt */}
+    {/* Cover: fixed square, cropped via background-size so nothing stretches */}
     <div
       className={`pixel-pool-header-cover${editMode ? " pixel-edit-dim" : ""}`}
       style={{ backgroundImage: `url(${pool.image})` }}
@@ -164,7 +148,7 @@ const PoolHeader: React.FC<PoolHeaderProps> = ({
       </div>
     </div>
 
-    {/* Leaderboard: clippt sich in die Header-Höhe, treibt sie nicht */}
+    {/* Leaderboard: clips to the header's height, doesn't grow it */}
     <div
       className={`pixel-pool-header-lb${editMode ? " pixel-edit-dim" : ""}`}
     >

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -6,9 +6,10 @@ import {
   useParams,
   Link,
 } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import SongList from "./components/SongList";
 import SongInfo from "./components/SongInfo";
-import { SongPoolProvider } from "./components/SongPoolProvider";
 import RankNewMaps from "./components/RankNewMaps";
 import logo from "./assets/Logo.png";
 import PoolCard from "./components/PoolCard";
@@ -19,18 +20,30 @@ import LoginPage from "./components/LoginPage";
 import ApiKeysPage from "./components/ApiKeysPage";
 import AccountSettingsPage from "./components/AccountSettingsPage";
 import ComparePoolsPage from "./components/ComparePoolsPage";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { usePools } from "./components/usePools";
 import "./components/pixel-ui.css";
 
-interface PoolDetailed {
-  id: string;
-  title: string;
-  image: string;
-  short_description: string;
-  author: string;
-  player_count: number;
-  popularity: number;
-  banner_image?: string;
-}
+// One client for the whole app — query results (pool list, a pool's
+// songs, search results, ...) are cached and deduped by their query
+// key regardless of which component asks for them, replacing what
+// used to be several hand-rolled, independent fetch+loading+error
+// useState trios scattered across App.tsx/ApiKeysPage.tsx (the exact
+// same /proxy/map_pools_detailed fetched twice), usePoolSongs.ts,
+// useBeatSaverSearch.ts, and others.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Hitbloq/BeatSaver data doesn't change under you mid-session
+      // often enough to justify refetching every time a component
+      // remounts or the window regains focus — opt into "fetch once,
+      // reuse" rather than React Query's web-app-dashboard-oriented
+      // defaults (refetch on every focus).
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 type SortKey = "popularity" | "name" | "players";
 
@@ -92,7 +105,8 @@ const TopBar: React.FC<{
 );
 
 // Card view for all pools with search and sorting
-const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
+const PoolOverview: React.FC = () => {
+  const { pools, isLoading, isError } = usePools();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("popularity");
 
@@ -129,13 +143,26 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch pb-10">
-          {filtered.map((pool, index) => (
-            <PoolCard key={pool.id} pool={pool} index={index} />
-          ))}
-        </div>
+        {isLoading && (
+          <div className="pixel-font text-[11px] text-cyan-300 text-center mt-8">
+            Loading pools...
+          </div>
+        )}
+        {isError && (
+          <div className="pixel-font text-[11px] text-orange-400 text-center mt-8">
+            Couldn't load the pool list. Try reloading.
+          </div>
+        )}
 
-        {filtered.length === 0 && (
+        {!isLoading && !isError && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch pb-10">
+            {filtered.map((pool, index) => (
+              <PoolCard key={pool.id} pool={pool} index={index} />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && !isError && filtered.length === 0 && (
           <div className="pixel-font text-[11px] text-orange-400 text-center mt-8">
             No pools found.
           </div>
@@ -148,8 +175,9 @@ const PoolOverview: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
 // Wrapper for SongList, gets Pool ID from URL. Brings its own topbar
 // (breadcrumb + "back to all pools" link), same recipe as SongInfo's
 // topbar, so it skips SubPageShell's plain logo bar.
-const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
+const PoolSongListPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { pools, isLoading } = usePools();
   const pool = pools.find((p) => p.id === id);
   // Owned here (not inside SongList) so this page's own topbar — the
   // one with the site logo — can show the "EDIT MODE!!" call-out too.
@@ -172,7 +200,7 @@ const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
           </span>
         )}
         <div className="flex-1" />
-        <Link to="/" className="pixel-tab" style={{ color: "#b7c0d6" }}>
+        <Link to="/" className="pixel-tab nav">
           ◂ ALL POOLS
         </Link>
         <AccountMenu />
@@ -183,7 +211,15 @@ const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
         )}
       </div>
       <div className="w-full max-w-screen-2xl mx-auto px-6 py-8">
-        {!id || !pool ? (
+        {!id ? (
+          <div className="text-orange-400">Pool not found.</div>
+        ) : isLoading ? (
+          <div className="pixel-font text-[11px] text-cyan-300">Loading...</div>
+        ) : !pool ? (
+          // Only shown once the pool list has actually finished
+          // loading and this id genuinely isn't in it — previously
+          // this flashed on every load (pools started out empty while
+          // its own fetch was still in flight), not just a real 404.
           <div className="text-orange-400">Pool not found.</div>
         ) : (
           <SongList
@@ -198,27 +234,16 @@ const PoolSongListPage: React.FC<{ pools: PoolDetailed[] }> = ({ pools }) => {
   );
 };
 
-const App: React.FC = () => {
-  const [pools, setPools] = useState<PoolDetailed[]>([]);
-
-  useEffect(() => {
-    fetch("http://localhost:3001/proxy/map_pools_detailed")
-      .then((res) => res.json())
-      .then((data) =>
-        setPools([...data].sort((a, b) => b.popularity - a.popularity)),
-      )
-      .catch(() => setPools([]));
-  }, []);
-
-  return (
-    <SongPoolProvider>
-      <AuthProvider>
-        <DialogHost />
-        <Router>
-          <div className="min-h-screen pixel-bg font-sans">
+const App: React.FC = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
+      <DialogHost />
+      <Router>
+        <div className="min-h-screen pixel-bg font-sans">
+          <ErrorBoundary>
             <Routes>
-              <Route path="/" element={<PoolOverview pools={pools} />} />
-              <Route path="/pool/:id" element={<PoolSongListPage pools={pools} />} />
+              <Route path="/" element={<PoolOverview />} />
+              <Route path="/pool/:id" element={<PoolSongListPage />} />
               {/* SongInfo and RankNewMaps both bring their own topbar
                   (with breadcrumb + back link) and page container, so
                   they skip SubPageShell. */}
@@ -227,13 +252,14 @@ const App: React.FC = () => {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/api-keys" element={<ApiKeysPage />} />
               <Route path="/account" element={<AccountSettingsPage />} />
-              <Route path="/compare" element={<ComparePoolsPage pools={pools} />} />
+              <Route path="/compare" element={<ComparePoolsPage />} />
             </Routes>
-          </div>
-        </Router>
-      </AuthProvider>
-    </SongPoolProvider>
-  );
-};
+          </ErrorBoundary>
+        </div>
+      </Router>
+    </AuthProvider>
+    <ReactQueryDevtools initialIsOpen={false} />
+  </QueryClientProvider>
+);
 
 export default App;
